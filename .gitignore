@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+coverage/
+playwright-report/
+test-results/
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
+*.log
+.DS_Store
+docs/REPORT.pdf
+.cache/
+.home/
+프롬프트.md

@@ -1,0 +1,9 @@
+node_modules/
+**/dist/
+.cache/
+.home/
+apps/api/uploads/
+apps/web/test-results/
+playwright-report/
+프롬프트.md
+package-lock.json

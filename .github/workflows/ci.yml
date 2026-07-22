@@ -1,0 +1,52 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tiny
+          POSTGRES_PASSWORD: ci_${{ github.run_id }}_${{ github.run_attempt }}
+          POSTGRES_DB: tiny_market_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tiny -d tiny_market_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://tiny:ci_${{ github.run_id }}_${{ github.run_attempt }}@localhost:5432/tiny_market_test?schema=public
+      WEB_ORIGIN: http://localhost:5173
+      ADMIN_USERNAME: admin_user
+      ADMIN_DISPLAY_NAME: 관리자
+      DEMO_INITIAL_BALANCE: 100000
+      PRODUCT_REPORT_THRESHOLD: 3
+      USER_REPORT_THRESHOLD: 5
+      UPLOAD_DIR: apps/api/uploads
+      LOG_LEVEL: silent
+      PLAYWRIGHT_BROWSERS_PATH: .cache/ms-playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - name: Generate ephemeral CI secrets
+        run: |
+          echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "ADMIN_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+          echo "SEED_USER_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run build
+      - run: npm audit --audit-level=high

@@ -1,0 +1,23 @@
+# 개발 과정 보안 약점과 변경 사항
+
+아래는 설계·구현·실행 검증에서 실제 확인하고 수정한 항목이다. 취약한 예제 코드는 최종 소스에 남기지 않았다.
+
+| 번호 | 발견 단계     | 보안 약점                                      | 공격 가능성 및 영향                                                       | 관련 CWE/OWASP     | 수정 전 설계 또는 코드                            | 적용한 변경                                                    | 검증 방법                      | 상태 |
+| ---: | ------------- | ---------------------------------------------- | ------------------------------------------------------------------------- | ------------------ | ------------------------------------------------- | -------------------------------------------------------------- | ------------------------------ | ---- |
+|    1 | 설계          | 클라이언트 식별자/권한 신뢰 위험               | IDOR·권한 상승                                                            | CWE-639, A01       | URL/폼 userId 사용 가능성                         | session userId, DB role/status, owner/member guard             | IDOR·chat·admin 통합           | 해결 |
+|    2 | 설계          | localStorage JWT 탈취 범위                     | XSS 시 장기 토큰 탈취                                                     | CWE-922, A07       | JWT 고려                                          | PostgreSQL server session, HttpOnly cookie, regenerate/destroy | auth 통합·cookie 설정 검토     | 해결 |
+|    3 | 설계          | 잔액 read-calculate-write                      | 동시 이중 지출·음수                                                       | CWE-362            | 앱 계산 후 update 가능성                          | BigInt, Serializable, 조건부 차감, DB check, 원장              | 동시 요청 통합                 | 해결 |
+|    4 | 설계          | 업로드 원본 신뢰                               | polyglot, path, metadata                                                  | CWE-434, A04       | MIME/원본명 저장 가능성                           | Sharp decode/pixel/reencode, UUID, byte limit                  | 유효 이미지 통합·코드 검토     | 해결 |
+|    5 | 구현          | report nullable unique만으로 중복 방어 불충분  | PostgreSQL NULL semantics로 중복                                          | CWE-20             | 앱 중복 query만                                   | target별 partial unique index와 transaction                    | 중복 신고 통합                 | 해결 |
+|    6 | 구현          | 비밀번호 변경 후 기존 session 잔존             | 탈취 session 지속                                                         | CWE-613            | 현재 hash만 변경                                  | parameter binding으로 해당 user sessions 전체 삭제             | 코드/수동 검토                 | 해결 |
+|    7 | 구현          | 비활성 전환 뒤 auth route 일부가 userId만 검사 | 기존 session으로 profile 변경                                             | CWE-284            | `/me` mutation 로컬 검사                          | 공용 ACTIVE `requireAuth` 적용                                 | typecheck·통합 회귀            | 해결 |
+|    8 | 프론트 E2E    | 공용 product Zod가 `image` 필드를 strip        | 이미지 선택 후 등록 불가                                                  | CWE-20(품질)       | resolver가 server schema만 사용                   | client schema에 FileList 필드 확장                             | Playwright 상품 등록           | 해결 |
+|    9 | 프론트 E2E    | Socket 연결 중 버튼 무응답                     | 메시지 유실·UX 혼란                                                       | CWE-400/가용성     | optional emit만 수행                              | 직접 개발 Socket URL, reconnect, REST 저장 fallback            | 실시간 연결 alert 0 + E2E 채팅 | 해결 |
+|   10 | 공급망 검사   | 12개 취약점(1 Critical, 8 High)                | test server file execution, upload DoS, image decoder, redirect/path 문제 | CWE-862/400/79/22  | 오래된 Vitest/Multer/Sharp/Router/Vite/Playwright | 안전 버전으로 pin 및 lock 갱신                                 | `npm audit`: 0                 | 해결 |
+|   11 | 컨테이너 검토 | API runtime에 dev dependency 포함              | 이미지 공격면 증가                                                        | CWE-1104           | build node_modules 전체 copy                      | 별도 prod-deps stage에서 `npm prune --omit=dev`                | Dockerfile 검토                | 해결 |
+|   12 | 테스트 검토   | Vitest가 E2E 파일을 수집                       | 테스트 명령 실패/오해                                                     | CWE-693(검증 약화) | `tests/**` 전체 수집                              | E2E exclude, Playwright 별도 명령                              | `npm test`, `test:e2e`         | 해결 |
+|   13 | 반복 E2E      | rate limit 기본 HTML 응답                      | API 오류 규약 불일치·UI 상세 유실                                         | CWE-209/품질       | 라이브러리 기본 429 body                          | requestId 포함 공통 JSON 429 handler                           | production limiter 발동·회귀   | 해결 |
+
+## 잔여 위험
+
+MFA, 분산 rate limiter/Socket adapter, malware sandbox, 객체 스토리지, 중앙 SIEM은 단일 노드 학습 범위를 넘어 운영 전 추가해야 한다. E2E 데이터 자동 청소와 multi-browser matrix도 후속 개선이다.

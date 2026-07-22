@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+enum UserStatus {
+  ACTIVE
+  DORMANT
+  BANNED
+}
+enum ProductStatus {
+  ACTIVE
+  RESERVED
+  SOLD
+  HIDDEN
+  DELETED
+}
+enum RoomType {
+  GLOBAL
+  DIRECT
+}
+enum MessageStatus {
+  VISIBLE
+  HIDDEN
+}
+enum ReportTargetType {
+  USER
+  PRODUCT
+}
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+enum TransferStatus {
+  COMPLETED
+}
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+model User {
+  id                String      @id @default(uuid()) @db.Uuid
+  username          String      @unique @db.VarChar(20)
+  passwordHash      String
+  displayName       String      @db.VarChar(30)
+  bio               String      @default("") @db.VarChar(500)
+  role              Role        @default(USER)
+  status            UserStatus  @default(ACTIVE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  passwordChangedAt DateTime    @default(now())
+  wallet            Wallet?
+  products          Product[]
+  memberships       ChatMember[]
+  messages          Message[]
+  reportsMade       Report[]    @relation("Reporter")
+  reportsReceived   Report[]    @relation("TargetUser")
+  reviews            Report[]    @relation("Reviewer")
+  transfersSent     Transfer[]  @relation("Sender")
+  transfersReceived Transfer[]  @relation("Receiver")
+  auditLogs          AdminAuditLog[]
+
+  @@index([createdAt])
+}
+
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json
+  expire DateTime @db.Timestamp(6)
+  @@index([expire])
+  @@map("session")
+}
+
+model Product {
+  id          String        @id @default(uuid()) @db.Uuid
+  sellerId    String        @db.Uuid
+  name        String        @db.VarChar(100)
+  description String        @db.VarChar(3000)
+  price       BigInt
+  imagePath   String
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+  seller      User          @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  reports     Report[]
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([name])
+}
+
+model ChatRoom {
+  id        String       @id @default(uuid()) @db.Uuid
+  type      RoomType
+  directKey String?      @unique @db.VarChar(73)
+  createdAt DateTime     @default(now())
+  members   ChatMember[]
+  messages  Message[]
+}
+
+model ChatMember {
+  chatRoomId String   @db.Uuid
+  userId     String   @db.Uuid
+  joinedAt   DateTime @default(now())
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([chatRoomId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id         String        @id @default(uuid()) @db.Uuid
+  chatRoomId String        @db.Uuid
+  senderId   String        @db.Uuid
+  content    String        @db.VarChar(500)
+  status     MessageStatus @default(VISIBLE)
+  createdAt  DateTime      @default(now())
+  hiddenAt   DateTime?
+  chatRoom   ChatRoom      @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender     User          @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  @@index([chatRoomId, createdAt])
+}
+
+model Report {
+  id              String           @id @default(uuid()) @db.Uuid
+  reporterId      String           @db.Uuid
+  targetType      ReportTargetType
+  targetUserId    String?          @db.Uuid
+  targetProductId String?          @db.Uuid
+  reason          String           @db.VarChar(1000)
+  status          ReportStatus     @default(PENDING)
+  reviewedBy      String?          @db.Uuid
+  reviewedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  reporter        User             @relation("Reporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  targetUser      User?            @relation("TargetUser", fields: [targetUserId], references: [id], onDelete: Restrict)
+  targetProduct   Product?         @relation(fields: [targetProductId], references: [id], onDelete: Restrict)
+  reviewer        User?            @relation("Reviewer", fields: [reviewedBy], references: [id], onDelete: Restrict)
+  @@index([status, createdAt])
+  @@index([targetUserId])
+  @@index([targetProductId])
+}
+
+model Wallet {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @unique @db.Uuid
+  balance   BigInt        @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  entries   WalletEntry[]
+}
+
+model Transfer {
+  id             String         @id @default(uuid()) @db.Uuid
+  senderId       String         @db.Uuid
+  receiverId     String         @db.Uuid
+  amount         BigInt
+  idempotencyKey String         @db.Uuid
+  status         TransferStatus @default(COMPLETED)
+  createdAt      DateTime       @default(now())
+  sender         User           @relation("Sender", fields: [senderId], references: [id], onDelete: Restrict)
+  receiver       User           @relation("Receiver", fields: [receiverId], references: [id], onDelete: Restrict)
+  entries        WalletEntry[]
+  @@unique([senderId, idempotencyKey])
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+}
+
+model WalletEntry {
+  id           String    @id @default(uuid()) @db.Uuid
+  walletId     String    @db.Uuid
+  transferId   String    @db.Uuid
+  entryType    EntryType
+  amount       BigInt
+  balanceAfter BigInt
+  createdAt    DateTime  @default(now())
+  wallet       Wallet    @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  transfer     Transfer  @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  @@unique([transferId, entryType])
+  @@index([walletId, createdAt])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  adminId    String   @db.Uuid
+  action     String   @db.VarChar(100)
+  targetType String   @db.VarChar(50)
+  targetId   String   @db.VarChar(100)
+  beforeData Json?
+  afterData  Json?
+  createdAt  DateTime @default(now())
+  admin      User     @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  @@index([createdAt])
+  @@index([adminId, createdAt])
+}

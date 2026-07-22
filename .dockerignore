@@ -1,0 +1,7 @@
+node_modules
+**/dist
+.git
+.env
+apps/api/uploads/*
+coverage
+playwright-report
