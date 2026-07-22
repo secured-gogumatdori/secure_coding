@@ -185,7 +185,12 @@ Redis adapter/store, MFA/SSO, object storage+scan, multi-image, notification, re
 
 `https://github.com/<OWNER>/tiny-secondhand-secure-platform`
 
-현재 환경에서 실제 public repository push 성공 여부는 최종 작업 단계에서 확인하며, 인증이 없다면 위 placeholder를 유지하고 정확한 게시 명령을 제공한다.
+현재 환경에는 GitHub CLI(`gh`)가 설치되어 있지 않아 인증 확인, public repository 생성, push를 수행하지 못했다. 위 placeholder를 유지하며 게시 가능한 로컬 `main` 커밋은 생성했다. GitHub CLI 설치·로그인 후 저장소 루트에서 다음을 실행한다.
+
+```bash
+gh auth login
+gh repo create tiny-secondhand-secure-platform --public --source=. --remote=origin --push
+```
 
 ## 부록: 상태 구분
 
