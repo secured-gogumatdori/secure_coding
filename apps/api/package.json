@@ -19,7 +19,7 @@
   "dependencies": {
     "@prisma/client": "6.8.2",
     "@tiny/shared": "1.0.0",
-    "argon2": "0.43.0",
+    "argon2": "0.45.1",
     "connect-pg-simple": "10.0.0",
     "cors": "2.8.5",
     "dotenv": "16.5.0",
