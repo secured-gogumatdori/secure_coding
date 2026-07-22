@@ -1,16 +1,51 @@
+# Dependencies and build output
 node_modules/
 dist/
+build/
+
+# Environment variables and local secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+
+# Test and coverage output
 coverage/
 playwright-report/
 test-results/
+
+# Runtime uploads (keep the directory itself)
 apps/api/uploads/*
 !apps/api/uploads/.gitkeep
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs and temporary files
 *.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Tool and editor state
+.vscode/
+.idea/
 .DS_Store
-docs/REPORT.pdf
 .cache/
 .home/
+
+# Locally generated report
+docs/REPORT.pdf
+
+# Assignment source is kept locally only
 프롬프트.md
