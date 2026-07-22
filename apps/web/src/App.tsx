@@ -72,6 +72,8 @@ function RequireAuth({ admin = false }: { admin?: boolean }) {
 }
 
 function Home() {
+  const me = useMe();
+
   return (
     <>
       <section className="hero">
@@ -89,7 +91,7 @@ function Home() {
           <Link className="button" to="/products">
             상품 둘러보기
           </Link>
-          <Link className="button secondary" to="/signup">
+          <Link className="button secondary" to={me.data?.user ? '/products' : '/signup'}>
             시작하기
           </Link>
         </div>

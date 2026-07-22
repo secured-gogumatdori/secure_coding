@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -66,6 +66,29 @@ describe('폼 검증과 오류 표시', () => {
 });
 
 describe('권한 UI와 데모 지갑', () => {
+  it('로그인 사용자의 시작하기 링크는 상품 목록으로 이동한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        response({
+          user: {
+            id: '1',
+            username: 'member',
+            displayName: '회원',
+            bio: '',
+            role: 'USER',
+            status: 'ACTIVE',
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      ),
+    );
+    renderPage(<App />);
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: '시작하기' })).toHaveAttribute('href', '/products'),
+    );
+  });
+
   it('관리자에게만 관리자 메뉴를 표시한다', async () => {
     vi.stubGlobal(
       'fetch',

@@ -78,4 +78,13 @@ test('가입→상품→채팅→신고→송금→관리자 검토→RBAC', asy
   await login(page, userB, password);
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: '403' })).toBeVisible();
+
+  // 반복 실행해도 상품 목록에 자동화 테스트 데이터가 남지 않도록 생성한 상품을 soft delete한다.
+  await logout(page);
+  await login(page, userA, password);
+  await page.goto(`/search?q=${encodeURIComponent(`E2E 안전 상품 ${stamp}`)}`);
+  await page.getByRole('link', { name: new RegExp('E2E 안전 상품') }).click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '삭제' }).click();
+  await expect(page.getByRole('heading', { name: '내 상품 관리' })).toBeVisible();
 });
