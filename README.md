@@ -186,26 +186,3 @@ npm audit
 ```
 
 통합/E2E 테스트에는 독립 DB 사용을 권장합니다. CI는 PostgreSQL service container를 사용합니다. 로컬 기존 데이터가 있는 DB에서 E2E를 실행하면 `e2e*` 테스트 데이터가 남을 수 있습니다.
-
-## 보안 운영 요약
-
-- 운영 쿠키는 `HttpOnly`, `SameSite=Lax`, `Secure`; HTTPS가 필수입니다.
-- WSS/TLS 종단, 주기적인 세션 정리, 감사 로그 모니터링, PostgreSQL 백업이 필요합니다.
-- 로컬 업로드는 실행되지 않는 정적 경로에 UUID WebP로 저장합니다. 운영에서는 악성코드 검사·격리·서명 URL을 갖춘 객체 스토리지로 전환하세요.
-- 신고 임계치는 영구 제재가 아니라 임시조치입니다. 관리자가 맥락을 검토해야 합니다.
-- 현재 단일 프로세스 Socket rate bucket은 수평 확장 시 Redis 등의 공유 저장소로 교체해야 합니다.
-
-자세한 운영 절차와 기술 부채는 [유지보수 문서](docs/MAINTENANCE.md), 취약점 제보는 [SECURITY.md](SECURITY.md)를 참고하세요.
-
-## GitHub와 라이선스
-
-- Repository: https://github.com/secured-gogumatdori/secure_coding
-- License: [MIT](LICENSE)
-
-제출용 DOCX/PDF와 로컬 생성 스크립트는 GitHub 저장소에 포함하지 않는 별도 제출물입니다. 동일 내용의 저장소 원고는 [docs/REPORT.md](docs/REPORT.md)입니다.
-
-Pandoc과 한글 폰트가 설치된 환경에서는 원고를 직접 PDF로 변환할 수도 있습니다.
-
-```bash
-pandoc docs/REPORT.md -o docs/REPORT.pdf --pdf-engine=xelatex
-```
