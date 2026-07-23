@@ -78,7 +78,7 @@ export function createSocketServer(server: HttpServer) {
     socket.on(
       'message:send',
       async (
-        payload: { roomId?: unknown; content?: unknown },
+        payload: { roomId?: unknown; content?: unknown; clientMessageId?: unknown },
         callback?: (value: object) => void,
       ) => {
         try {
@@ -92,8 +92,11 @@ export function createSocketServer(server: HttpServer) {
           recent.push(now);
           buckets.set(userId, recent);
           if (typeof payload?.roomId !== 'string') throw new Error('잘못된 요청입니다.');
-          const message = await createMessage(userId, payload.roomId, { content: payload.content });
-          io.to(payload.roomId).emit('message:new', message);
+          const message = await createMessage(userId, payload.roomId, {
+            content: payload.content,
+            clientMessageId: payload.clientMessageId,
+          });
+          io.to(message.chatRoomId).emit('message:new', message);
           callback?.({ ok: true, message });
         } catch {
           callback?.({ ok: false, message: '메시지를 전송할 수 없습니다.' });

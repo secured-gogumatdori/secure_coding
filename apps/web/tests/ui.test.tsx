@@ -67,6 +67,21 @@ describe('폼 검증과 오류 표시', () => {
       await screen.findAllByText(/String must contain|Number must be greater/i),
     ).not.toHaveLength(0);
   });
+  it('상품 등록 폼이 허용하지 않는 이미지 형식을 거부한다', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    renderPage(<ProductFormPage />);
+    await user.type(screen.getByLabelText('상품명'), '안전한 상품');
+    await user.type(screen.getByLabelText('설명'), '상품 설명');
+    await user.type(screen.getByLabelText('가격 (정수 KRW)'), '1000');
+    await user.upload(
+      screen.getByLabelText(/상품 사진/),
+      new File(['not-an-image'], 'payload.txt', { type: 'text/plain' }),
+    );
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(
+      await screen.findByText('JPEG, PNG, WebP 이미지만 선택할 수 있습니다.'),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('출력 인코딩', () => {
@@ -99,6 +114,28 @@ describe('출력 인코딩', () => {
     expect(await screen.findByText(malicious)).toBeInTheDocument();
     expect(view.container.querySelector('script')).toBeNull();
     expect(view.container.querySelector('img[onerror]')).toBeNull();
+  });
+
+  it('상품 상태 필터와 페이지 이동을 query에 반영한다', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        const page = url.includes('page=2') ? 2 : 1;
+        return response({ products: [], total: 25, page, pageSize: 12 });
+      }),
+    );
+    renderPage(<ProductList search />, '/search');
+
+    await screen.findByText('1 / 3 페이지');
+    await userEvent.selectOptions(screen.getByLabelText('상품 상태'), 'SOLD');
+    await userEvent.click(screen.getByRole('button', { name: '검색' }));
+    await waitFor(() => expect(urls.some((url) => url.includes('status=SOLD'))).toBe(true));
+    await userEvent.click(screen.getByRole('button', { name: '다음' }));
+    expect(await screen.findByText('2 / 3 페이지')).toBeInTheDocument();
+    expect(urls.some((url) => url.includes('page=2'))).toBe(true);
   });
 });
 

@@ -31,7 +31,7 @@ docker-compose.yml        PostgreSQL, migration, API, nginx Web
 
 ## 사전 요구사항
 
-- Node.js 20 이상(검증: 24.18.0), npm 10 이상
+- Node.js 20.19 이상 또는 22.12 이상(검증: 24.18.0), npm 10 이상
 - Docker와 Docker Compose
 - E2E 최초 1회 약 300MB의 Chromium 다운로드 공간
 
@@ -72,7 +72,7 @@ docker compose up --build
 docker compose run --rm migrate npm run db:seed
 ```
 
-`migrate`가 스키마를 적용한 뒤 API가 시작됩니다. Web은 http://localhost:5173 입니다. PostgreSQL과 업로드는 named volume에 보존됩니다.
+`migrate`가 스키마를 적용한 뒤 API가 시작됩니다. Web은 http://localhost:5173 입니다. `migrate`에서 seed를 실행해도 생성 이미지가 API와 같은 upload named volume에 저장되며 PostgreSQL 데이터와 함께 보존됩니다.
 
 ## 여러 기기에서 동시 접속
 
@@ -159,7 +159,7 @@ JSON 상품 목록이 보이면 PC↔폰 네트워크와 Web↔API 프록시가 
 4. 폰에서 상품 상세 → `판매자에게 연락` → `1대1 채팅`으로 채팅방을 만듭니다.
 5. PC 계정에서 `채팅`을 열고 같은 채팅방에 입장한 뒤, 양쪽에서 메시지가 실시간으로 보이는지 확인합니다.
 
-채팅 기록은 PostgreSQL에 저장되므로 한쪽이 늦게 접속해도 기존 메시지를 불러옵니다. 실시간 메시지는 Socket.IO로 전달되며, 연결이 잠시 끊겨도 REST fallback으로 다시 불러옵니다.
+채팅 기록은 PostgreSQL에 저장되므로 한쪽이 늦게 접속해도 기존 메시지를 불러옵니다. 실시간 메시지는 Socket.IO로 전달하며, 연결 또는 응답이 끊기면 같은 메시지 의도 UUID를 사용하는 REST fallback으로 저장합니다. 서버 unique 제약이 Socket·REST 중복 저장을 막습니다.
 
 ### 문제 해결
 
@@ -202,7 +202,7 @@ npm audit
 - Repository: https://github.com/secured-gogumatdori/secure_coding
 - License: [MIT](LICENSE)
 
-제출용 Word 보고서는 [docs/Tiny*Secondhand_Platform*과제보고서.docx](docs/Tiny_Secondhand_Platform_과제보고서.docx), 동일 내용의 원고는 [docs/REPORT.md](docs/REPORT.md)입니다. DOCX를 Microsoft Word 또는 Google Docs에서 연 뒤 PDF로 내보낼 수 있습니다.
+제출용 DOCX/PDF와 로컬 생성 스크립트는 GitHub 저장소에 포함하지 않는 별도 제출물입니다. 동일 내용의 저장소 원고는 [docs/REPORT.md](docs/REPORT.md)입니다.
 
 Pandoc과 한글 폰트가 설치된 환경에서는 원고를 직접 PDF로 변환할 수도 있습니다.
 

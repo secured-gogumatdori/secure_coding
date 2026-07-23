@@ -18,7 +18,12 @@ export function ProductList({
   mine?: boolean;
 }) {
   const [params, setParams] = useSearchParams();
-  const query = useQuery<{ products: Product[]; total?: number }>({
+  const query = useQuery<{
+    products: Product[];
+    total?: number;
+    page?: number;
+    pageSize?: number;
+  }>({
     queryKey: ['products', mine ? 'mine' : params.toString()],
     queryFn: () => api(mine ? '/products/mine' : `/products?${params.toString()}`),
   });
@@ -27,6 +32,11 @@ export function ProductList({
     const data = new FormData(event.currentTarget);
     const next = new URLSearchParams();
     for (const [key, value] of data) if (String(value)) next.set(key, String(value));
+    setParams(next);
+  };
+  const changePage = (page: number) => {
+    const next = new URLSearchParams(params);
+    next.set('page', String(page));
     setParams(next);
   };
   return (
@@ -57,11 +67,27 @@ export function ProductList({
             />
           </label>
           <label className="field">
+            상품 상태
+            <select name="status" defaultValue={params.get('status') ?? 'ACTIVE'}>
+              <option value="ACTIVE">판매 중</option>
+              <option value="RESERVED">예약 중</option>
+              <option value="SOLD">판매 완료</option>
+            </select>
+          </label>
+          <label className="field">
             정렬
             <select name="sort" defaultValue={params.get('sort') ?? 'newest'}>
               <option value="newest">최신순</option>
               <option value="priceAsc">가격 낮은 순</option>
               <option value="priceDesc">가격 높은 순</option>
+            </select>
+          </label>
+          <label className="field">
+            페이지당 개수
+            <select name="pageSize" defaultValue={params.get('pageSize') ?? '12'}>
+              <option value="12">12개</option>
+              <option value="24">24개</option>
+              <option value="48">48개</option>
             </select>
           </label>
           <button type="submit">검색</button>
@@ -89,6 +115,35 @@ export function ProductList({
           {query.data.products.length === 0 && (
             <p className="muted">조건에 맞는 상품이 없습니다.</p>
           )}
+          {!mine &&
+            (() => {
+              const page = query.data.page ?? Number(params.get('page') ?? 1);
+              const pageSize = query.data.pageSize ?? Number(params.get('pageSize') ?? 12);
+              const totalPages = Math.max(1, Math.ceil((query.data.total ?? 0) / pageSize));
+              return (
+                <nav className="pagination" aria-label="상품 목록 페이지">
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => changePage(page - 1)}
+                  >
+                    이전
+                  </button>
+                  <span>
+                    {page} / {totalPages} 페이지
+                  </span>
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => changePage(page + 1)}
+                  >
+                    다음
+                  </button>
+                </nav>
+              );
+            })()}
         </>
       )}
     </section>
@@ -178,7 +233,22 @@ export function ProductDetail() {
 }
 
 type ProductInput = z.infer<typeof productSchema> & { image?: FileList };
-const productFormSchema = productSchema.extend({ image: z.any().optional() });
+const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const maxImageBytes = 5 * 1024 * 1024;
+const productFormSchema = productSchema.extend({
+  image: z
+    .any()
+    .optional()
+    .refine((files) => !files || files.length <= 1, '상품 이미지는 한 개만 선택해 주세요.')
+    .refine((files) => {
+      const file = files?.item?.(0) as File | null | undefined;
+      return !file || allowedImageTypes.has(file.type);
+    }, 'JPEG, PNG, WebP 이미지만 선택할 수 있습니다.')
+    .refine((files) => {
+      const file = files?.item?.(0) as File | null | undefined;
+      return !file || file.size <= maxImageBytes;
+    }, '상품 이미지는 5MB 이하여야 합니다.'),
+});
 export function ProductFormPage({ edit = false }: { edit?: boolean }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -256,6 +326,7 @@ export function ProductFormPage({ edit = false }: { edit?: boolean }) {
               accept="image/jpeg,image/png,image/webp"
               {...form.register('image')}
             />
+            <span className="error">{String(form.formState.errors.image?.message ?? '')}</span>
           </label>
           <p className="muted">
             JPEG, PNG, WebP · 최대 5MB · 서버에서 메타데이터 제거 후 재인코딩됩니다.

@@ -33,4 +33,4 @@
 
 ## 검증
 
-Supertest가 CSRF, 일반화 로그인 실패, IDOR, SQLi/XSS 형태 문자열, 중복/임계 신고, chat membership, RBAC, 송금 replay/동시성을 검증했다. Playwright가 사용자 간 전체 흐름과 실시간 Socket 연결, 관리자 검토, 일반 사용자 403을 검증했다. 의존성 감사 결과는 0건이다.
+Supertest가 CSRF, 일반화 로그인 실패, IDOR, SQLi/XSS 형태 문자열, 중복/임계 신고, chat membership, RBAC, 송금 replay/동시성을 검증했다. Playwright가 사용자 간 전체 흐름과 실시간 Socket 연결, 관리자 검토, 일반 사용자 403을 검증했다. 의존성 감사는 2026년 7월 22일 실행에서 0건이었으며 최신 advisory는 별도 재조회가 필요하다.

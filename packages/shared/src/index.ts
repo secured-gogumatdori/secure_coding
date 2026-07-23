@@ -34,7 +34,10 @@ export const productQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(12),
 });
-export const messageSchema = z.object({ content: z.string().trim().min(1).max(500) });
+export const messageSchema = z.object({
+  content: z.string().trim().min(1).max(500),
+  clientMessageId: idSchema.optional(),
+});
 export const directRoomSchema = z.object({ userId: idSchema });
 export const userSearchSchema = z.object({
   q: z.string().trim().min(1).max(30),

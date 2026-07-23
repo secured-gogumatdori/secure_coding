@@ -106,7 +106,7 @@ walletRouter.post(
         throw new HttpError(
           409,
           'TRANSFER_CONFLICT',
-          '동시 요청이 감지되었습니다. 새 요청 키로 다시 시도해 주세요.',
+          '동시 요청이 감지되었습니다. 같은 송금 내용으로 다시 시도해 주세요.',
         );
       throw error;
     }

@@ -400,7 +400,20 @@
 
   ```ts
   type ProductInput = z.infer<typeof productSchema> & { image?: FileList };
-  const productFormSchema = productSchema.extend({ image: z.any().optional() });
+  const productFormSchema = productSchema.extend({
+    image: z
+      .any()
+      .optional()
+      .refine((files) => !files || files.length <= 1, '이미지는 한 개만 선택')
+      .refine((files) => {
+        const file = files?.item?.(0);
+        return !file || allowedImageTypes.has(file.type);
+      }, 'JPEG, PNG, WebP만 허용')
+      .refine((files) => {
+        const file = files?.item?.(0);
+        return !file || file.size <= 5 * 1024 * 1024;
+      }, '이미지는 5MB 이하'),
+  });
   const form = useForm<ProductInput>({
     resolver: zodResolver(productFormSchema),
   });
@@ -412,11 +425,11 @@
 
 - 변경 설명:
   - 공용 상품 필드 타입에 `{ image?: FileList }`를 교차해 클라이언트 입력 타입을 정의했다.
-  - 클라이언트 resolver는 `productSchema.extend({ image: z.any().optional() })`를 사용해 파일 선택값을 보존한다.
+  - 클라이언트 resolver는 image 선택값을 보존하면서 파일 1개, JPEG·PNG·WebP MIME, 5MB 상한을 먼저 검사한다.
   - 신규 등록 시 첫 번째 파일이 없으면 요청 전에 오류를 내고, 존재하면 `FormData`의 `image`로 전송한다.
   - 서버의 SEC-04 검증은 그대로 유지해 프론트 검증을 보안 경계로 사용하지 않는다.
 - 보안 효과: 클라이언트와 서버 검증 책임을 분리하면서 정상 이미지 입력이 누락되는 품질 문제를 해결한다.
-- 검증: Playwright 가입→상품 이미지 업로드→상세 페이지 시나리오, UI 빈 필드 검증 테스트
+- 검증: Playwright 가입→상품 이미지 업로드→상세 페이지 시나리오, UI 빈 필드·허용하지 않는 이미지 형식 검증 테스트
 - 상태: 해결
 
 ## SEC-09: 실시간 채팅 재연결과 REST 저장 fallback
@@ -428,6 +441,7 @@
   - `apps/web/src/pages.chat.tsx`: `ChatPage` Socket lifecycle과 `send`
   - `apps/api/src/socket.ts`: session·Origin·상태·멤버십 검증
   - `apps/api/src/chat-service.ts`: REST와 Socket이 공유하는 `createMessage`
+  - `apps/api/prisma/schema.prisma`, `migrations/20260724033000_message_idempotency`: 메시지 의도 unique
 - 기존 내용:
 
   ```ts
@@ -440,29 +454,39 @@
 - 수정 후 내용:
 
   ```ts
-  if (socket?.connected) {
-    socket.emit('message:send', { roomId, content: value }, (answer) => {
-      if (answer.ok) setContent('');
-      else setSocketError(answer.message ?? '전송하지 못했습니다.');
+  const clientMessageId = crypto.randomUUID();
+  const saveWithRest = () =>
+    api(`/chats/${roomId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content: value, clientMessageId }),
     });
-    return;
-  }
 
-  void api(`/chats/${roomId}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({ content: value }),
-  }).then(({ message }) => {
-    // query cache에 저장된 메시지를 반영
+  socket
+    .timeout(5000)
+    .emit('message:send', { roomId, content: value, clientMessageId }, (error, answer) => {
+      if (!error && answer?.ok) return;
+      void saveWithRest();
+    });
+
+  // 서버
+  const message = await prisma.message.upsert({
+    where: { senderId_clientMessageId: { senderId, clientMessageId } },
+    update: {},
+    create: { senderId, chatRoomId, content, clientMessageId },
   });
+  if (message.chatRoomId !== chatRoomId || message.content !== content)
+    throw new HttpError(409, 'MESSAGE_KEY_CONFLICT', '메시지 전송 정보를 다시 확인해 주세요.');
   ```
 
 - 변경 설명:
-  - 개발 환경에서는 현재 hostname의 `:4000`, 배포 환경에서는 same-origin 프록시를 사용하도록 Socket URL을 구분했다.
+  - 개발·배포 환경 모두 브라우저의 same-origin `/socket.io`를 사용하고 Vite/nginx가 API로 proxy하므로 외부 기기는 Web 포트만 사용한다.
   - connect 후 `room:join`을 다시 전송해 자동 재연결 시 채팅방 membership을 복구한다.
-  - Socket 연결 오류를 UI alert로 표시하고, 비연결 상태의 전송은 `POST /chats/:roomId/messages` REST 요청으로 저장한다.
+  - Socket 연결 오류와 5초 acknowledgement timeout에서 `POST /chats/:roomId/messages` REST 요청으로 저장한다.
+  - 한 전송 의도에 같은 `clientMessageId`를 사용하고 `(senderId, clientMessageId)` UNIQUE와 upsert로 Socket 처리 후 응답만 유실된 경우에도 중복 저장을 막는다.
+  - 같은 키를 다른 방이나 내용에 재사용하면 `409 MESSAGE_KEY_CONFLICT`로 거부하고, broadcast 대상은 요청값이 아니라 저장된 메시지의 방 ID를 사용한다.
   - REST와 Socket 모두 `createMessage`를 호출해 방 membership, 사용자 ACTIVE 상태, 메시지 스키마를 동일하게 검증한다.
-- 보안 효과: 연결 순간의 메시지 유실을 줄이면서 fallback 경로에서도 Socket과 같은 권한 검사를 강제한다.
-- 검증: Playwright 양 사용자 1:1 채팅 시나리오, 연결 오류 alert와 메시지 표시 확인
+- 보안 효과: 연결 순간의 메시지 유실과 중복 저장을 함께 줄이면서 fallback 경로에서도 Socket과 같은 권한 검사를 강제한다.
+- 검증: Playwright 양 사용자 1:1 채팅 기존 시나리오, 멱등 upsert·키 충돌 DB mock 단위 테스트 3개 통과, 동일 client message ID REST 재요청 통합 테스트 추가(실제 DB 재실행 대기)
 - 상태: 해결
 
 ## SEC-10: 알려진 공급망 취약점 제거
@@ -684,6 +708,8 @@
   *.sqlite3
   apps/api/uploads/*
   !apps/api/uploads/.gitkeep
+  docs/Tiny_Secondhand_Platform_과제보고서.docx
+  docs/generate_assignment_report.py
   .vscode/
   .idea/
   .cache/
@@ -693,6 +719,7 @@
   - `.env`, `.env.*`를 제외하고 `!.env.example`만 예외로 공개 가능하게 유지했다.
   - `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.crt`, `*.cer`, `secrets/`를 제외했다.
   - `*.db`, `*.sqlite*`, runtime uploads, log, cache, test report, IDE 상태와 로컬 보고서 산출물을 제외했다.
+  - 별도 제출물인 DOCX와 로컬 보고서 생성 스크립트는 실수로 공개되지 않도록 명시적으로 제외했다.
   - `git ls-files`와 `git check-ignore`로 실제 `.env`와 key가 추적되지 않고 `.env.example`만 추적되는지 확인했다.
 - 보안 효과: 공개 저장소 push 시 인증 비밀, 로컬 데이터, 사용자 업로드가 실수로 포함될 가능성을 줄인다.
 - 검증: ignore rule별 `git check-ignore -v`, tracked secret filename 검사, `.env.example` placeholder 검토
@@ -911,7 +938,8 @@
     next();
   });
 
-  const status = req.activeUser?.role === 'ADMIN' ? query.status : 'ACTIVE';
+  // 목록은 공개 가능한 상태 allowlist만 허용
+  const status = query.status; // ACTIVE | RESERVED | SOLD
   const privileged = req.activeUser?.id === product.sellerId || req.activeUser?.role === 'ADMIN';
   ```
 
@@ -927,8 +955,9 @@
   ```
 
 - 변경 설명:
-  - 인증이 필수는 아닌 상품 목록·상세에도 `optionalActiveUser`를 적용했다. 세션이 있으면 DB에서 현재 role과 status를 조회하고, `ACTIVE` 사용자만 요청 한정 `activeUser`로 인정한다.
-  - 탈퇴·제재되었거나 존재하지 않는 사용자의 오래된 session role로 숨김 상품을 보거나 관리자용 status 필터를 쓰지 못하게 했다.
+  - 상품 목록 status는 공개 가능한 `ACTIVE`, `RESERVED`, `SOLD`만 Zod allowlist로 허용하며 `HIDDEN`, `DELETED`를 요청할 수 없다.
+  - 인증이 필수는 아닌 상품 상세에는 `optionalActiveUser`를 적용했다. 세션이 있으면 DB에서 현재 role과 status를 조회하고, `ACTIVE` 사용자만 요청 한정 `activeUser`로 인정한다.
+  - 탈퇴·제재되었거나 존재하지 않는 사용자의 오래된 session role로 숨김 상품 상세를 볼 수 없게 했다.
   - 판매자·검색 결과에서 내부 계정 상태와 role을 제거했다. 공개 프로필은 `ACTIVE` 사용자만 동일한 최소 필드로 반환한다.
   - 프론트도 `User`, `UserSummary`, `PublicProfileUser`를 구분해 공개 API가 내부 필드를 제공한다고 가정하지 않도록 변경했다.
 - 보안 효과: 세션에 남은 과거 권한의 공용 조회 사용을 차단하고, 계정 제재 여부와 role 같은 불필요한 메타데이터 노출을 줄인다.
@@ -1305,6 +1334,12 @@
 - 2차 점검까지 DB 비의존 API 보안 테스트 11개와 Web UI 테스트 9개, lint, typecheck, production build, format check, `git diff --check`가 통과했다.
 - PostgreSQL이 필요한 API 통합 테스트에는 검증·malformed JSON·경로 조작·비활성 session 검색 시나리오를 추가했으나, 점검 시점에 Docker Desktop의 WSL integration이 꺼져 있어 전체 DB 통합 suite를 재실행하지 못했다. Docker 연결 복구 후 `npm test`를 다시 실행해야 한다.
 - 최신 npm advisory 재조회는 dependency metadata를 외부 npm registry로 전송하는 작업이 별도 승인되지 않아 실행하지 않았다. 마지막으로 완료된 `npm audit` 결과는 2026-07-22의 0 vulnerabilities이며, 현재 시점 결과로 간주해서는 안 된다.
+
+## 2026-07-24 플랫폼·문서 정합성 보완
+
+- Docker seed image volume, 공개 상품 상태·페이지 UI, 클라이언트 이미지 형식·크기 검사, same-origin Socket, 멱등 메시지 REST fallback, 송금 충돌 안내를 코드와 문서에 함께 반영했다.
+- DB 비의존 API 보안·채팅 테스트 14개와 Web UI 테스트 11개, lint, typecheck, production build, format check, `git diff --check`가 통과했다.
+- 로컬 PostgreSQL에 연결할 수 없어 신규 message idempotency migration과 DB 통합·E2E는 재실행하지 못했다. Prisma Client 생성으로 schema를 검증했고 DB mock 단위 테스트와 실제 DB 통합 회귀 코드를 추가했다.
 
 ## 잔여 위험
 

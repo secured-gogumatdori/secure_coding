@@ -248,11 +248,23 @@ describe('신고, 채팅 권한, 관리자 RBAC', () => {
         .send({ userId: b.user.id })
         .expect(201)
     ).body.room;
+    const clientMessageId = crypto.randomUUID();
+    const firstMessage = await a.agent
+      .post(`/api/chats/${room.id}/messages`)
+      .set('x-csrf-token', a.token)
+      .send({ content: '안전한 메시지', clientMessageId })
+      .expect(201);
+    const retriedMessage = await a.agent
+      .post(`/api/chats/${room.id}/messages`)
+      .set('x-csrf-token', a.token)
+      .send({ content: '안전한 메시지', clientMessageId })
+      .expect(201);
+    expect(retriedMessage.body.message.id).toBe(firstMessage.body.message.id);
     await a.agent
       .post(`/api/chats/${room.id}/messages`)
       .set('x-csrf-token', a.token)
-      .send({ content: '안전한 메시지' })
-      .expect(201);
+      .send({ content: '변조된 재시도', clientMessageId })
+      .expect(409);
     await outsider.agent.get(`/api/chats/${room.id}/messages`).expect(403);
     await a.agent.get('/api/admin/stats').expect(403);
   });

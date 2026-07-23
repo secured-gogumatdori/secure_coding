@@ -27,16 +27,16 @@
 
 ## 주요 API
 
-| 영역   | Method/Path                                                                          | 인증/권한                          |
-| ------ | ------------------------------------------------------------------------------------ | ---------------------------------- | -------- | ------- | -------- | --------- | ----------- | ------------ |
-| CSRF   | `GET /api/auth/csrf`                                                                 | 공개                               |
-| 인증   | `POST /api/auth/signup`, `login`, `logout`; `GET/PATCH /me`; `POST /change-password` | mutation CSRF, me mutation ACTIVE  |
-| 사용자 | `GET /api/users/:id`, `/search`                                                      | profile 공개, search 로그인        |
-| 상품   | `GET /api/products`, `/:id`; `POST/PUT/DELETE`                                       | 조회 공개, 변경 ACTIVE+owner/admin |
-| 채팅   | `GET rooms/messages`, `POST direct/messages`                                         | ACTIVE+membership                  |
-| 신고   | `POST /api/reports`                                                                  | ACTIVE, rate limit                 |
-| 지갑   | `GET /api/wallet`, `/transfers`; `POST /transfers`                                   | ACTIVE, own data, rate limit       |
-| 관리자 | `/api/admin/stats                                                                    | users                              | products | reports | messages | transfers | audit-logs` | ACTIVE ADMIN |
+| 영역   | Method/Path                                                                          | 인증/권한                                    |
+| ------ | ------------------------------------------------------------------------------------ | -------------------------------------------- | -------- | ------- | -------- | --------- | ----------- | ------------ |
+| CSRF   | `GET /api/auth/csrf`                                                                 | 공개                                         |
+| 인증   | `POST /api/auth/signup`, `login`, `logout`; `GET/PATCH /me`; `POST /change-password` | mutation CSRF, me mutation ACTIVE            |
+| 사용자 | `GET /api/users/:id`, `/search`                                                      | profile 공개, search 로그인                  |
+| 상품   | `GET /api/products`, `/:id`; `POST/PUT/DELETE`                                       | 판매 상태 조회 공개, 변경 ACTIVE+owner/admin |
+| 채팅   | `GET rooms/messages`, `POST direct/messages`                                         | ACTIVE+membership                            |
+| 신고   | `POST /api/reports`                                                                  | ACTIVE, rate limit                           |
+| 지갑   | `GET /api/wallet`, `/transfers`; `POST /transfers`                                   | ACTIVE, own data, rate limit                 |
+| 관리자 | `/api/admin/stats                                                                    | users                                        | products | reports | messages | transfers | audit-logs` | ACTIVE ADMIN |
 
 상태 변경 HTTP 요청은 모두 `X-CSRF-Token`이 필요하다. 오류는 `{ error: { code, message }, requestId }` 형태다. 금액은 JSON에서 10진 문자열로 반환한다.
 
@@ -50,7 +50,7 @@ Multer memory storage가 1파일/byte 제한과 declared MIME allowlist를 적�
 
 ## Socket.IO
 
-Engine middleware가 동일한 PostgreSQL session을 읽는다. handshake의 Origin과 ACTIVE 상태를 검증하고 `room:join`마다 GLOBAL/direct membership을 확인한다. payload에 senderId는 없으며 session userId만 사용한다. 10초 10메시지 in-memory bucket과 500자 스키마를 적용한다. 클라이언트는 재연결하며 연결 전에는 동일 보안 검사를 쓰는 REST 저장 fallback을 사용한다. 운영은 WSS가 필수다.
+Engine middleware가 동일한 PostgreSQL session을 읽는다. handshake의 Origin과 ACTIVE 상태를 검증하고 `room:join`마다 GLOBAL/direct membership을 확인한다. payload에 senderId는 없으며 session userId만 사용한다. 10초 10메시지 in-memory bucket과 500자 스키마를 적용한다. 클라이언트는 same-origin으로 재연결하며 연결 중단·5초 acknowledgement timeout에는 같은 `clientMessageId`를 쓰는 REST 저장 fallback을 사용한다. DB unique와 upsert가 중복 저장을 막는다. 운영은 WSS가 필수다.
 
 ## 송금 transaction
 

@@ -16,7 +16,6 @@ const sellerSelect = { id: true, username: true, displayName: true } as const;
 
 productsRouter.get(
   '/',
-  optionalActiveUser,
   asyncHandler(async (req, res) => {
     const query = parse(productQuerySchema, req.query);
     const page = query.page ?? 1;
@@ -27,9 +26,8 @@ productsRouter.get(
       query.minPrice > query.maxPrice
     )
       throw new HttpError(400, 'PRICE_RANGE_INVALID', '최소 가격은 최대 가격보다 클 수 없습니다.');
-    const status = req.activeUser?.role === 'ADMIN' ? query.status : 'ACTIVE';
     const where = {
-      status,
+      status: query.status,
       price: {
         gte: query.minPrice === undefined ? undefined : BigInt(query.minPrice),
         lte: query.maxPrice === undefined ? undefined : BigInt(query.maxPrice),

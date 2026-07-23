@@ -45,7 +45,7 @@ sequenceDiagram
 
 ### 채팅
 
-Socket handshake에서 정확한 Origin, PostgreSQL session, ACTIVE 상태를 검증한다. `room:join`은 GLOBAL 또는 `ChatMember` 존재 여부를 재검증한다. senderId는 payload가 아니라 session에서 가져온다. 메시지는 500자 Zod와 사용자별 10초 bucket을 통과한 뒤 DB에 저장·broadcast한다. 연결 중단 시 REST 경로가 같은 membership 검사를 거쳐 저장한다.
+Socket handshake에서 정확한 Origin, PostgreSQL session, ACTIVE 상태를 검증한다. `room:join`은 GLOBAL 또는 `ChatMember` 존재 여부를 재검증한다. senderId는 payload가 아니라 session에서 가져온다. 메시지는 500자 Zod와 사용자별 10초 bucket을 통과한 뒤 DB에 저장·broadcast한다. 브라우저는 same-origin Socket proxy를 사용하며 연결 중단이나 acknowledgement timeout 시 같은 `clientMessageId`로 REST 저장을 재시도한다. `(senderId, clientMessageId)` UNIQUE와 upsert가 중복 저장을 방지하고 REST도 같은 membership 검사를 거친다.
 
 ### 신고와 자동조치
 

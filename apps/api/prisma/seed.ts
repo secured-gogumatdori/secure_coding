@@ -121,6 +121,8 @@ function productImage(seed: (typeof productSeeds)[number]) {
 }
 
 async function main() {
+  const initialBalance =
+    process.env.NODE_ENV === 'production' ? 0n : BigInt(process.env.DEMO_INITIAL_BALANCE ?? 100000);
   const [adminHash, userHash] = await Promise.all([
     argon2.hash(adminPassword, options),
     argon2.hash(userPassword, options),
@@ -144,7 +146,7 @@ async function main() {
         update: { displayName: spec.displayName, role: spec.role },
         create: {
           ...spec,
-          wallet: { create: { balance: BigInt(process.env.DEMO_INITIAL_BALANCE ?? 100000) } },
+          wallet: { create: { balance: initialBalance } },
         },
       }),
     );

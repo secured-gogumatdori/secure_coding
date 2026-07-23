@@ -119,15 +119,17 @@ model ChatMember {
 }
 
 model Message {
-  id         String        @id @default(uuid()) @db.Uuid
-  chatRoomId String        @db.Uuid
-  senderId   String        @db.Uuid
-  content    String        @db.VarChar(500)
-  status     MessageStatus @default(VISIBLE)
-  createdAt  DateTime      @default(now())
-  hiddenAt   DateTime?
-  chatRoom   ChatRoom      @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  sender     User          @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  id              String        @id @default(uuid()) @db.Uuid
+  chatRoomId      String        @db.Uuid
+  senderId        String        @db.Uuid
+  clientMessageId String?       @db.Uuid
+  content         String        @db.VarChar(500)
+  status          MessageStatus @default(VISIBLE)
+  createdAt       DateTime      @default(now())
+  hiddenAt        DateTime?
+  chatRoom        ChatRoom      @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender          User          @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  @@unique([senderId, clientMessageId])
   @@index([chatRoomId, createdAt])
 }
 

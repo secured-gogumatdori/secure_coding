@@ -38,7 +38,7 @@ UI 범위: login/signup/product form validation, API 오류 표시, 관리자 �
 | Prisma generate 실패  | enum 한 줄 문법, 홈 캐시 read-only                      | multiline enum, project-local cache           | generate PASS            |
 | 초기 `npm test` 실패  | Vitest가 Playwright spec 수집                           | `tests/e2e/**` exclude                        | 12 PASS                  |
 | E2E 이미지 등록 실패  | resolver가 FileList strip                               | client schema 확장                            | 상품 단계 PASS           |
-| E2E chat 실패         | dev Socket proxy 재연결 중 emit 무응답                  | API 직접 dev Socket, reconnect/REST fallback  | Socket alert 0, E2E PASS |
+| E2E chat 실패         | dev Socket proxy 재연결 중 emit 무응답                  | 최초 API 직접 연결·REST fallback 적용         | Socket alert 0, E2E PASS |
 | E2E 관리자 단계 실패  | 비동기 login 완료 전 navigation                         | auth 완료 link wait, explicit env path        | E2E PASS                 |
 | audit 12건            | 구 버전 Vitest/Multer/Sharp/Router/Vite/Playwright 등   | 패치/안전 major로 pin, lock 갱신              | audit 0                  |
 | Docker Web unhealthy  | `localhost`가 IPv6 `::1`로 해석되고 nginx는 IPv4 listen | health URL을 `127.0.0.1`로 변경               | Web healthy              |
@@ -50,7 +50,15 @@ UI 범위: login/signup/product form validation, API 오류 표시, 관리자 �
 
 ## 한계
 
+이 표는 2026년 7월 22일 당시의 수정·재테스트 기록이다. 이후 7월 24일에는 개발·배포 모두 same-origin Socket proxy로 통일하고, acknowledgement timeout과 메시지 의도 UUID unique/upsert를 추가해 REST fallback의 중복 저장도 방지했다.
+
+## 2026년 7월 24일 정합성 보완 회귀
+
+Docker seed upload volume, 상품 상태·페이지 UI, 클라이언트 이미지 검사, same-origin Socket과 멱등 REST fallback, 송금 충돌 안내를 보완했다. DB 비의존 API 테스트 14개와 Web UI 테스트 11개, lint·strict typecheck·production build·format 검사는 통과했다. Prisma Client 생성으로 새 schema를 검증했다.
+
+현재 로컬 PostgreSQL에 연결할 수 없어 신규 migration deploy와 DB 통합 API 10개, E2E 1개는 다시 실행하지 못했다. 채팅 멱등성은 DB mock 단위 테스트 3개로 upsert, 키·내용 충돌 거부, 이전 payload 호환을 검증했고 실제 DB 재요청 회귀도 통합 suite에 추가했다.
+
 - API 통합 테스트는 현재 로컬 DB를 사용했고 별도 database name 자동 생성은 CI에서 service DB로 격리한다.
-- user 자동 휴면, rate limit 실제 window 소진, invalid image signature, password session invalidation을 위한 전용 자동 테스트는 추가 가능하다.
+- user 자동 휴면, rate limit 실제 window 소진, password session invalidation을 위한 전용 자동 테스트는 추가 가능하다.
 - E2E는 Chromium 단일 브라우저이며 생성 데이터 cleanup fixture는 아직 없다.
 - production TLS/WSS, multi-node, backup/restore, object storage는 환경 의존 수동/운영 검증 대상이다.

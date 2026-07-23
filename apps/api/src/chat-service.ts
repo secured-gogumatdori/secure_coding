@@ -13,12 +13,25 @@ export async function canAccessRoom(userId: string, roomId: string) {
 export async function createMessage(userId: string, roomId: string, value: unknown) {
   if (!(await canAccessRoom(userId, roomId)))
     throw new HttpError(403, 'ROOM_ACCESS_DENIED', '채팅방에 접근할 수 없습니다.');
-  const { content } = parse(messageSchema, value);
+  const { content, clientMessageId } = parse(messageSchema, value);
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
   if (user?.status !== 'ACTIVE')
     throw new HttpError(403, 'ACCOUNT_RESTRICTED', '채팅을 이용할 수 없는 계정입니다.');
-  return prisma.message.create({
-    data: { chatRoomId: roomId, senderId: userId, content },
-    include: { sender: { select: { id: true, displayName: true, username: true } } },
+  const include = {
+    sender: { select: { id: true, displayName: true, username: true } },
+  } as const;
+  if (!clientMessageId)
+    return prisma.message.create({
+      data: { chatRoomId: roomId, senderId: userId, content },
+      include,
+    });
+  const message = await prisma.message.upsert({
+    where: { senderId_clientMessageId: { senderId: userId, clientMessageId } },
+    update: {},
+    create: { chatRoomId: roomId, senderId: userId, clientMessageId, content },
+    include,
   });
+  if (message.chatRoomId !== roomId || message.content !== content)
+    throw new HttpError(409, 'MESSAGE_KEY_CONFLICT', '메시지 전송 정보를 다시 확인해 주세요.');
+  return message;
 }

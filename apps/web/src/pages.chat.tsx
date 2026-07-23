@@ -72,12 +72,15 @@ export function ChatPage() {
     queryFn: () => api(`/chats/${roomId}/messages`),
     enabled: !!roomId,
   });
+  const appendMessage = (message: Message) =>
+    client.setQueryData<{ messages: Message[] }>(['messages', roomId], (old) => ({
+      messages: old?.messages.some((item) => item.id === message.id)
+        ? old.messages
+        : [...(old?.messages ?? []), message],
+    }));
   useEffect(() => {
     if (!roomId) return;
-    const developmentUrl = import.meta.env.DEV
-      ? `${window.location.protocol}//${window.location.hostname}:4000`
-      : undefined;
-    const socket = io(import.meta.env.VITE_SOCKET_URL ?? developmentUrl, { withCredentials: true });
+    const socket = io(import.meta.env.VITE_SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
     socket.on('connect', () =>
       socket.emit('room:join', roomId, (answer: { ok: boolean; message?: string }) => {
@@ -88,11 +91,7 @@ export function ChatPage() {
     socket.on('connect_error', () =>
       setSocketError('실시간 연결에 실패했습니다. 재연결 중입니다.'),
     );
-    socket.on('message:new', (message: Message) =>
-      client.setQueryData<{ messages: Message[] }>(['messages', roomId], (old) => ({
-        messages: [...(old?.messages ?? []), message],
-      })),
-    );
+    socket.on('message:new', appendMessage);
     return () => {
       socket.disconnect();
     };
@@ -101,30 +100,36 @@ export function ChatPage() {
     event.preventDefault();
     const value = content.trim();
     if (!value || !roomId) return;
+    const clientMessageId = crypto.randomUUID();
     const socket = socketRef.current;
+    const saveWithRest = () =>
+      api<{ message: Message }>(`/chats/${roomId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: value, clientMessageId }),
+      }).then(({ message }) => {
+        appendMessage(message);
+        setContent((current) => (current.trim() === value ? '' : current));
+        setSocketError('실시간 응답이 없어 안전한 저장 방식으로 전송했습니다.');
+      });
     if (socket?.connected) {
-      socket.emit(
-        'message:send',
-        { roomId, content: value },
-        (answer: { ok: boolean; message?: string }) => {
-          if (answer.ok) setContent('');
-          else setSocketError(answer.message ?? '전송하지 못했습니다.');
-        },
-      );
+      socket
+        .timeout(5000)
+        .emit(
+          'message:send',
+          { roomId, content: value, clientMessageId },
+          (error: Error | null, answer?: { ok: boolean; message?: string }) => {
+            if (!error && answer?.ok) {
+              setContent((current) => (current.trim() === value ? '' : current));
+              return;
+            }
+            void saveWithRest().catch((restError: Error) =>
+              setSocketError(restError.message || answer?.message || '전송하지 못했습니다.'),
+            );
+          },
+        );
       return;
     }
-    void api<{ message: Message }>(`/chats/${roomId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({ content: value }),
-    })
-      .then(({ message }) => {
-        client.setQueryData<{ messages: Message[] }>(['messages', roomId], (old) => ({
-          messages: [...(old?.messages ?? []), message],
-        }));
-        setContent('');
-        setSocketError('실시간 연결이 복구 중이라 저장 방식으로 전송했습니다.');
-      })
-      .catch((error: Error) => setSocketError(error.message));
+    void saveWithRest().catch((error: Error) => setSocketError(error.message));
   };
   return (
     <section>

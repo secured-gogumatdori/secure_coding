@@ -17,7 +17,7 @@
 | ID   | 요구사항             | 핵심 수용 기준                                                            | 결과 |
 | ---- | -------------------- | ------------------------------------------------------------------------- | ---- |
 | FR-1 | 회원가입·사용자 관리 | Argon2id, unique username, 현재 암호 확인, 비활성 계정 기능 차단          | 완료 |
-| FR-2 | 상품 등록·조회·관리  | 비회원 ACTIVE 조회, 서버 소유권 검사, 안전한 이미지, 소프트 삭제          | 완료 |
+| FR-2 | 상품 등록·조회·관리  | 공개 상태 조회, 숨김 차단, 서버 소유권 검사, 안전한 이미지, 소프트 삭제   | 완료 |
 | FR-3 | 사용자 간 소통       | 전체·1:1, DB 저장, 세션·Origin·멤버십 검사, 길이·속도 제한                | 완료 |
 | FR-4 | 신고와 차단          | 자기·중복 신고 차단, 고유 신고자 임계치, 임시조치와 관리자 복구           | 완료 |
 | FR-5 | 데모 송금            | 정수 BigInt, 자기·초과·비활성 차단, Serializable transaction, idempotency | 완료 |
@@ -128,17 +128,18 @@ User(ADMIN) 1 ── N AdminAuditLog
 
 ### 4.2 핵심 제약
 
-| 제약                                | 목적                                         |
-| ----------------------------------- | -------------------------------------------- |
-| `User.username` UNIQUE              | 중복 계정 방지                               |
-| `Wallet.userId` UNIQUE              | 사용자당 지갑 하나                           |
-| `ChatRoom.directKey` UNIQUE         | 동일한 두 사용자의 1:1 방 중복 방지          |
-| `(senderId, idempotencyKey)` UNIQUE | 송금 replay 중복 차감 방지                   |
-| `Wallet.balance >= 0` CHECK         | 애플리케이션 우회 시에도 음수 잔액 거부      |
-| `Transfer.amount > 0` CHECK         | 0원·음수 송금 거부                           |
-| `senderId <> receiverId` CHECK      | 자기 송금 DB 차단                            |
-| 신고 target XOR CHECK               | USER 신고와 PRODUCT 신고의 target 조합 강제  |
-| 대상별 partial UNIQUE               | nullable target을 이용한 중복 신고 우회 방지 |
+| 제약                                 | 목적                                         |
+| ------------------------------------ | -------------------------------------------- |
+| `User.username` UNIQUE               | 중복 계정 방지                               |
+| `Wallet.userId` UNIQUE               | 사용자당 지갑 하나                           |
+| `ChatRoom.directKey` UNIQUE          | 동일한 두 사용자의 1:1 방 중복 방지          |
+| `(senderId, clientMessageId)` UNIQUE | Socket·REST fallback 메시지 중복 저장 방지   |
+| `(senderId, idempotencyKey)` UNIQUE  | 송금 replay 중복 차감 방지                   |
+| `Wallet.balance >= 0` CHECK          | 애플리케이션 우회 시에도 음수 잔액 거부      |
+| `Transfer.amount > 0` CHECK          | 0원·음수 송금 거부                           |
+| `senderId <> receiverId` CHECK       | 자기 송금 DB 차단                            |
+| 신고 target XOR CHECK                | USER 신고와 PRODUCT 신고의 target 조합 강제  |
+| 대상별 partial UNIQUE                | nullable target을 이용한 중복 신고 우회 방지 |
 
 가격과 잔액·송금액은 PostgreSQL `BIGINT`와 TypeScript `BigInt`로 처리한다. JSON 응답에서는 정밀도 손실을 막기 위해 10진 문자열로 직렬화한다.
 
@@ -152,7 +153,7 @@ User(ADMIN) 1 ── N AdminAuditLog
 
 ### 5.2 상품·검색·이미지
 
-상품 등록·목록·상세·수정·소프트 삭제와 내 상품 목록을 구현했다. 공개 사용자는 `ACTIVE` 상품만 볼 수 있고 숨김 상품은 소유자 또는 최신 DB role이 `ADMIN`인 사용자만 볼 수 있다. 검색어·가격 범위·정렬·페이지 크기는 Zod로 검증하며 Prisma `contains`를 사용한다.
+상품 등록·목록·상세·수정·소프트 삭제와 내 상품 목록을 구현했다. 공개 목록은 `ACTIVE`, `RESERVED`, `SOLD`만 상태 필터로 조회할 수 있고, `HIDDEN` 상세는 소유자 또는 최신 DB role이 `ADMIN`인 사용자만 볼 수 있다. `DELETED` 상세는 공개하지 않는다. 검색어·가격 범위·상태·정렬·페이지 크기는 Zod로 검증하고 화면에서 페이지를 이동하며 Prisma `contains`를 사용한다.
 
 이미지는 다음 순서로 처리한다.
 
@@ -165,7 +166,7 @@ User(ADMIN) 1 ── N AdminAuditLog
 
 ### 5.3 전체·1:1 실시간 채팅
 
-GLOBAL 방은 필요할 때 생성한다. 1:1 방은 두 사용자 UUID를 정렬해 `directKey`를 만들고 UNIQUE로 중복을 막는다. REST와 Socket 모두 `canAccessRoom`을 사용하므로 임의 room ID로 다른 대화를 읽거나 쓰지 못한다.
+GLOBAL 방은 필요할 때 생성한다. 1:1 방은 두 사용자 UUID를 정렬해 `directKey`를 만들고 UNIQUE로 중복을 막는다. REST와 Socket 모두 `canAccessRoom`을 사용하므로 임의 room ID로 다른 대화를 읽거나 쓰지 못한다. 브라우저는 메시지 전송 의도마다 UUID를 만들고 Socket acknowledgement가 5초 안에 오지 않으면 같은 UUID로 REST 저장을 재시도한다. DB의 `(senderId, clientMessageId)` UNIQUE와 upsert가 응답만 유실된 경우의 중복 메시지를 막는다.
 
 Socket handshake는 정확한 `WEB_ORIGIN`, PostgreSQL session, `ACTIVE` 상태를 검사한다. `room:join`과 `message:send` 직전 session을 reload하며, 이벤트가 없는 연결도 60초마다 재검증한다. 메시지는 500자로 제한하고 사용자별 10초당 10회 bucket을 적용한다. 로그아웃·비밀번호 변경·관리자 제재·신고 자동 휴면 시 해당 사용자의 기존 Socket을 즉시 종료한다.
 
@@ -247,7 +248,7 @@ PostgreSQL SERIALIZABLE TRANSACTION
 | SEC-06 | password hash만 바꾸면 탈취된 기존 session이 유지             | 최근 재인증·현재 암호 확인 후 사용자 전체 session 삭제            |
 | SEC-07 | 일부 인증 경로가 session userId 존재만 확인                   | 공용 `requireAuth`가 매 요청 DB의 role·ACTIVE 상태 확인           |
 | SEC-08 | 상품 폼 resolver가 이미지 필드를 제거                         | client schema에 image 유지·형식·크기 검사 추가                    |
-| SEC-09 | Socket 재연결 중 emit 무응답으로 메시지 유실                  | reconnect 처리와 동일 멤버십 검사의 REST 저장 fallback            |
+| SEC-09 | Socket 재연결 중 emit 무응답으로 메시지 유실                  | same-origin 연결, timeout, 멱등 UUID를 쓰는 REST 저장 fallback    |
 | SEC-10 | 직접·전이 npm 의존성 12건 advisory                            | 안전 버전 pin·lock 갱신 후 당시 audit 0건                         |
 | SEC-11 | API runtime 이미지에 개발 의존성 포함                         | multi-stage build와 production dependency prune                   |
 | SEC-12 | Vitest가 Playwright E2E 파일까지 수집                         | unit/integration과 E2E 수집 범위 분리                             |
@@ -346,29 +347,20 @@ req.log?.error({ errorName: safeName, errorCode: safeCode }, 'request failed');
 
 ### 8.3 실제 검증 결과
 
-#### 1차 전체 실행 검증 — 2026년 7월 22일
-
-| 명령                                    | 결과                           |
-| --------------------------------------- | ------------------------------ |
-| `npm run lint`                          | PASS, error·warning 0          |
-| `npm run typecheck`                     | PASS                           |
-| `npm test`                              | PASS, API 7 + Web UI 6 = 13    |
-| `npm run test:e2e`                      | PASS, Chromium 전체 시나리오 1 |
-| `npm run build`                         | PASS                           |
-| `npm audit`                             | 당시 0 vulnerabilities         |
-| `npm run db:migrate`, `npm run db:seed` | PASS                           |
-| `docker compose build`, `up -d --wait`  | PASS, DB·API·Web healthy       |
-
-#### 보안 재점검 회귀 검증 — 2026년 7월 23일
-
 | 명령·범위                                  | 결과                                      |
 | ------------------------------------------ | ----------------------------------------- |
-| DB 비의존 API 보안 테스트                  | 11 PASS                                   |
-| Web UI 테스트                              | 9 PASS                                    |
-| `npm run lint`                             | PASS                                      |
+| DB 비의존 API 보안·채팅 멱등성 테스트      | 14 PASS                                   |
+| Web UI 폼·검색·페이지·송금 테스트          | 11 PASS                                   |
+| API·Web 통합 테스트 전체 실행 기록         | API 7 + Web UI 6 = 13 PASS                |
+| `npm run test:e2e`                         | Chromium 전체 시나리오 1 PASS             |
+| `npm run lint`                             | PASS, error·warning 0                     |
 | `npm run typecheck`                        | PASS                                      |
 | `npm run build`                            | PASS                                      |
 | `npm run format:check`, `git diff --check` | PASS                                      |
+| `npm run db:generate`                      | PASS                                      |
+| `npm run db:migrate`, `npm run db:seed`    | PASS                                      |
+| `docker compose build`, `up -d --wait`     | PASS, DB·API·Web healthy                  |
+| `npm audit`                                | 실행 당시 0 vulnerabilities               |
 | 위험 HTML·raw SQL·상세 오류 정적 검색      | 의도하지 않은 사용 0건                    |
 | Git 추적 민감 파일명 검사                  | `.env.example`, uploads `.gitkeep`만 해당 |
 
@@ -384,12 +376,6 @@ req.log?.error({ errorName: safeName, errorCode: safeCode }, 'request failed');
 | dependency advisory 12건 | 오래된 tool·upload·image 의존성      | 안전 버전 pin·lock 갱신           | 당시 audit 0 |
 | Docker Web unhealthy     | `localhost`가 IPv6로 해석            | health URL `127.0.0.1`            | healthy      |
 | 반복 로그인 429 HTML     | 기본 limiter handler                 | 공통 JSON 429 handler             | PASS         |
-
-### 8.5 검증 제한
-
-2026년 7월 23일의 2차 재점검 시점에는 Docker Desktop의 WSL integration이 꺼져 있어 PostgreSQL이 필요한 전체 API 통합 suite와 E2E를 다시 실행하지 못했다. 새 보안 회귀는 DB 비의존 테스트와 정적 검사로 검증했고, 전체 DB·E2E의 마지막 성공 기록은 2026년 7월 22일이다.
-
-최신 npm advisory 재조회는 dependency metadata 외부 전송 승인이 없어 수행하지 않았다. 2026년 7월 22일의 `npm audit` 0건을 현재 시점 결과로 과장하지 않는다.
 
 ## 9. 실행·배포 방법
 
@@ -417,7 +403,7 @@ docker compose up --build
 docker compose run --rm migrate npm run db:seed
 ```
 
-운영 환경은 `NODE_ENV=production`, HTTPS `WEB_ORIGIN`, 48자 이상의 무작위 `SESSION_SECRET`, 실제 DB 비밀번호가 필요하다. 운영 모드에서는 신규 사용자에게 데모 초기 잔액을 지급하지 않는다.
+`migrate`에서 seed를 실행해도 생성 이미지는 API와 같은 upload named volume에 저장된다. 운영 환경은 `NODE_ENV=production`, HTTPS `WEB_ORIGIN`, 48자 이상의 무작위 `SESSION_SECRET`, 실제 DB 비밀번호가 필요하다. 운영 모드에서는 일반 가입과 seed 사용자 모두 데모 초기 잔액을 지급하지 않는다.
 
 ### 9.3 PC와 모바일 동시 접속
 
@@ -434,7 +420,7 @@ docker compose run --rm migrate npm run db:seed
 
 **Public Repository URL:** https://github.com/secured-gogumatdori/secure_coding
 
-`.env`, key·certificate, 로컬 DB, 사용자 upload, 로그, cache, IDE·테스트 산출물은 `.gitignore`로 제외했다. `.env.example`에는 변수 이름과 교체해야 하는 예시값만 포함한다. 저장소에는 README 실행 방법, SECURITY 제보 정책, CI·CodeQL·Dependabot 설정이 포함된다.
+`.env`, key·certificate, 로컬 DB, 사용자 upload, 로그, cache, IDE·테스트 산출물은 `.gitignore`로 제외했다. 별도 제출용 DOCX와 로컬 생성 스크립트도 GitHub에서 제외하며 저장소에는 동일 내용의 `REPORT.md`만 둔다. `.env.example`에는 변수 이름과 교체해야 하는 예시값만 포함한다. 저장소에는 README 실행 방법, SECURITY 제보 정책, CI·CodeQL·Dependabot 설정이 포함된다.
 
 ## 10. 유지보수 계획
 

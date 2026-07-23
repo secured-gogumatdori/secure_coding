@@ -46,6 +46,8 @@ apps/api/uploads/*
 
 # Locally generated report
 docs/REPORT.pdf
+docs/Tiny_Secondhand_Platform_과제보고서.docx
+docs/generate_assignment_report.py
 
 # Assignment source is kept locally only
 프롬프트.md
