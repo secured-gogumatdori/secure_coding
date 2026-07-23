@@ -43,7 +43,7 @@ cp .env.example .env
 
 반드시 `SESSION_SECRET`, `POSTGRES_PASSWORD`, `ADMIN_PASSWORD`, `SEED_USER_PASSWORD`를 새 강한 값으로 바꾸고 `DATABASE_URL`에도 URL 인코딩한 같은 DB 비밀번호를 반영하세요. `WEB_ORIGIN`은 허용할 정확한 프론트 Origin, `*_REPORT_THRESHOLD`는 자동 임시조치 기준, `DEMO_INITIAL_BALANCE`는 비운영 환경 신규 사용자의 데모 잔액입니다. `UPLOAD_DIR`, 업로드 byte/pixel 제한, 세션 만료, trusted proxy, 로그 수준도 환경변수로 관리합니다. `.env`는 Git에서 제외됩니다.
 
-운영에서는 `NODE_ENV=production`, 32자 이상의 무작위 세션 비밀, TLS/HTTPS, 실제 DB 비밀번호를 사용해야 합니다. 운영 모드에는 초기 잔액을 지급하지 않습니다.
+운영에서는 `NODE_ENV=production`, 48자 이상의 placeholder가 아닌 무작위 세션 비밀, TLS/HTTPS, 실제 DB 비밀번호를 사용해야 합니다. 운영 모드에는 초기 잔액을 지급하지 않습니다.
 
 ## 로컬 설치와 실행
 
@@ -199,10 +199,12 @@ npm audit
 
 ## GitHub와 라이선스
 
-- Repository: `https://github.com/<OWNER>/tiny-secondhand-secure-platform` (게시 후 `<OWNER>` 수정)
+- Repository: https://github.com/secured-gogumatdori/secure_coding
 - License: [MIT](LICENSE)
 
-REPORT PDF가 필요하면 Pandoc과 한글 폰트를 설치한 뒤 실행하세요.
+제출용 Word 보고서는 [docs/Tiny*Secondhand_Platform*과제보고서.docx](docs/Tiny_Secondhand_Platform_과제보고서.docx), 동일 내용의 원고는 [docs/REPORT.md](docs/REPORT.md)입니다. DOCX를 Microsoft Word 또는 Google Docs에서 연 뒤 PDF로 내보낼 수 있습니다.
+
+Pandoc과 한글 폰트가 설치된 환경에서는 원고를 직접 PDF로 변환할 수도 있습니다.
 
 ```bash
 pandoc docs/REPORT.md -o docs/REPORT.pdf --pdf-engine=xelatex
