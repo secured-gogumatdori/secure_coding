@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports: ['5432:5432']
+    ports: ['127.0.0.1:5432:5432']
     volumes: ['postgres_data:/var/lib/postgresql/data']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U tiny -d tiny_market']
@@ -20,7 +20,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
       UPLOAD_DIR: /app/apps/api/uploads
-    ports: ['4000:4000']
+      TRUST_PROXY: 1
+    ports: ['127.0.0.1:4000:4000']
     volumes: ['uploads:/app/apps/api/uploads']
     depends_on:
       db: { condition: service_healthy }

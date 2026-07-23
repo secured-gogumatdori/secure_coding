@@ -1,14 +1,22 @@
 import { Router } from 'express';
 import { idSchema, productQuerySchema, productSchema } from '@tiny/shared';
 import { prisma } from './db.js';
-import { asyncHandler, HttpError, jsonBigInt, parse, requireAuth } from './http.js';
+import {
+  asyncHandler,
+  HttpError,
+  jsonBigInt,
+  optionalActiveUser,
+  parse,
+  requireAuth,
+} from './http.js';
 import { removeImage, saveImage, upload } from './upload.js';
 
 export const productsRouter = Router();
-const sellerSelect = { id: true, username: true, displayName: true, status: true } as const;
+const sellerSelect = { id: true, username: true, displayName: true } as const;
 
 productsRouter.get(
   '/',
+  optionalActiveUser,
   asyncHandler(async (req, res) => {
     const query = parse(productQuerySchema, req.query);
     const page = query.page ?? 1;
@@ -19,7 +27,7 @@ productsRouter.get(
       query.minPrice > query.maxPrice
     )
       throw new HttpError(400, 'PRICE_RANGE_INVALID', '최소 가격은 최대 가격보다 클 수 없습니다.');
-    const status = req.session.role === 'ADMIN' ? query.status : 'ACTIVE';
+    const status = req.activeUser?.role === 'ADMIN' ? query.status : 'ACTIVE';
     const where = {
       status,
       price: {
@@ -66,6 +74,7 @@ productsRouter.get(
 
 productsRouter.get(
   '/:id',
+  optionalActiveUser,
   asyncHandler(async (req, res) => {
     const id = parse(idSchema, req.params.id);
     const product = await prisma.product.findUnique({
@@ -74,7 +83,7 @@ productsRouter.get(
     });
     if (!product || product.status === 'DELETED')
       throw new HttpError(404, 'PRODUCT_NOT_FOUND', '상품을 찾을 수 없습니다.');
-    const privileged = req.session.userId === product.sellerId || req.session.role === 'ADMIN';
+    const privileged = req.activeUser?.id === product.sellerId || req.activeUser?.role === 'ADMIN';
     if (product.status === 'HIDDEN' && !privileged)
       throw new HttpError(404, 'PRODUCT_NOT_FOUND', '상품을 찾을 수 없습니다.');
     res.json(jsonBigInt({ product }));

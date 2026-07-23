@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { api } from './api';
 import { useMe } from './App';
-import type { Message, Room, User } from './types';
+import type { Message, Room, UserSummary } from './types';
 
 export function ChatIndex() {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ export function ChatIndex() {
     queryKey: ['rooms'],
     queryFn: () => api('/chats/rooms'),
   });
-  const users = useQuery<{ users: User[] }>({
+  const users = useQuery<{ users: UserSummary[] }>({
     queryKey: ['user-search', q],
     queryFn: () => api(`/users/search?q=${encodeURIComponent(q)}`),
     enabled: q.length > 0,

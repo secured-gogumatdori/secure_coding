@@ -6,7 +6,8 @@ import { logger } from './logger.js';
 import { createSocketServer } from './socket.js';
 
 const server = createServer(app);
-createSocketServer(server);
+const io = createSocketServer(server);
+app.set('io', io);
 server.listen(config.PORT, () => logger.info({ port: config.PORT }, 'API server listening'));
 
 async function shutdown(signal: string) {

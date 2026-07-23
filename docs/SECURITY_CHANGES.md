@@ -36,25 +36,32 @@
 
 ## 변경 요약
 
-| ID     | 발견 단계     | 약점                                                 | 주요 수정 위치                                                                     | 상태 |
-| ------ | ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------- | ---- |
-| SEC-01 | 설계          | 클라이언트 식별자·권한 신뢰에 따른 IDOR              | `apps/api/src/http.ts`, `routes.products.ts`, `chat-service.ts`, `routes.admin.ts` | 해결 |
-| SEC-02 | 설계          | 브라우저 저장 장기 토큰 탈취 및 세션 고정            | `apps/api/src/session.ts`, `routes.auth.ts`                                        | 해결 |
-| SEC-03 | 설계          | 송금 경쟁 상태로 인한 이중 지출·음수 잔액            | `apps/api/src/routes.wallet.ts`, Prisma migration                                  | 해결 |
-| SEC-04 | 설계          | 업로드 원본·MIME·파일명 신뢰                         | `apps/api/src/upload.ts`, `config.ts`, `routes.products.ts`                        | 해결 |
-| SEC-05 | 구현          | nullable 신고 대상의 중복 신고 우회                  | Prisma migration, `apps/api/src/routes.reports.ts`                                 | 해결 |
-| SEC-06 | 구현          | 비밀번호 변경 후 기존 세션 유지                      | `apps/api/src/routes.auth.ts`                                                      | 해결 |
-| SEC-07 | 구현          | 계정 비활성화 후 기존 세션으로 보호 기능 접근        | `apps/api/src/http.ts` 및 인증 필요 Router                                         | 해결 |
-| SEC-08 | 프론트 E2E    | 상품 이미지 필드가 검증 과정에서 제거                | `apps/web/src/pages.products.tsx`                                                  | 해결 |
-| SEC-09 | 프론트 E2E    | Socket 비연결 상태에서 메시지 전송 유실              | `apps/web/src/pages.chat.tsx`, `apps/api/src/socket.ts`, `chat-service.ts`         | 해결 |
-| SEC-10 | 공급망 검사   | 직접·전이 의존성의 알려진 취약점                     | workspace `package.json`, `package-lock.json`                                      | 해결 |
-| SEC-11 | 컨테이너 검토 | API 런타임 이미지에 개발 의존성 포함                 | `apps/api/Dockerfile`                                                              | 해결 |
-| SEC-12 | 테스트 검토   | Vitest와 Playwright 테스트 수집 범위 충돌            | `apps/web/vite.config.ts`, `apps/web/package.json`                                 | 해결 |
-| SEC-13 | 반복 E2E      | rate limit 응답의 HTML 노출과 API 오류 규약 불일치   | `apps/api/src/app.ts`                                                              | 해결 |
-| SEC-14 | 공개 전 검토  | 환경변수·개인 키·로컬 산출물의 공개 저장소 포함 위험 | `.gitignore`, `.env.example`                                                       | 해결 |
-| SEC-15 | 보안 재점검   | 검증·parser·예외의 상세 내용이 응답·로그에 노출      | `apps/api/src/http.ts`, `apps/api/src/app.ts`                                      | 해결 |
-| SEC-16 | 보안 재점검   | 사용자 검색의 공용 계정 상태 검사·입력 검증 누락     | `packages/shared/src/index.ts`, `apps/api/src/routes.users.ts`                     | 해결 |
-| SEC-17 | 보안 재점검   | CSP의 inline style 허용                              | `apps/api/src/app.ts`, `apps/web/nginx.conf`, React component와 CSS                | 해결 |
+| ID     | 발견 단계     | 약점                                                     | 주요 수정 위치                                                                     | 상태 |
+| ------ | ------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---- |
+| SEC-01 | 설계          | 클라이언트 식별자·권한 신뢰에 따른 IDOR                  | `apps/api/src/http.ts`, `routes.products.ts`, `chat-service.ts`, `routes.admin.ts` | 해결 |
+| SEC-02 | 설계          | 브라우저 저장 장기 토큰 탈취 및 세션 고정                | `apps/api/src/session.ts`, `routes.auth.ts`                                        | 해결 |
+| SEC-03 | 설계          | 송금 경쟁 상태로 인한 이중 지출·음수 잔액                | `apps/api/src/routes.wallet.ts`, Prisma migration                                  | 해결 |
+| SEC-04 | 설계          | 업로드 원본·MIME·파일명 신뢰                             | `apps/api/src/upload.ts`, `config.ts`, `routes.products.ts`                        | 해결 |
+| SEC-05 | 구현          | nullable 신고 대상의 중복 신고 우회                      | Prisma migration, `apps/api/src/routes.reports.ts`                                 | 해결 |
+| SEC-06 | 구현          | 비밀번호 변경 후 기존 세션 유지                          | `apps/api/src/routes.auth.ts`                                                      | 해결 |
+| SEC-07 | 구현          | 계정 비활성화 후 기존 세션으로 보호 기능 접근            | `apps/api/src/http.ts` 및 인증 필요 Router                                         | 해결 |
+| SEC-08 | 프론트 E2E    | 상품 이미지 필드가 검증 과정에서 제거                    | `apps/web/src/pages.products.tsx`                                                  | 해결 |
+| SEC-09 | 프론트 E2E    | Socket 비연결 상태에서 메시지 전송 유실                  | `apps/web/src/pages.chat.tsx`, `apps/api/src/socket.ts`, `chat-service.ts`         | 해결 |
+| SEC-10 | 공급망 검사   | 직접·전이 의존성의 알려진 취약점                         | workspace `package.json`, `package-lock.json`                                      | 해결 |
+| SEC-11 | 컨테이너 검토 | API 런타임 이미지에 개발 의존성 포함                     | `apps/api/Dockerfile`                                                              | 해결 |
+| SEC-12 | 테스트 검토   | Vitest와 Playwright 테스트 수집 범위 충돌                | `apps/web/vite.config.ts`, `apps/web/package.json`                                 | 해결 |
+| SEC-13 | 반복 E2E      | rate limit 응답의 HTML 노출과 API 오류 규약 불일치       | `apps/api/src/app.ts`                                                              | 해결 |
+| SEC-14 | 공개 전 검토  | 환경변수·개인 키·로컬 산출물의 공개 저장소 포함 위험     | `.gitignore`, `.env.example`                                                       | 해결 |
+| SEC-15 | 보안 재점검   | 검증·parser·예외의 상세 내용이 응답·로그에 노출          | `apps/api/src/http.ts`, `apps/api/src/app.ts`                                      | 해결 |
+| SEC-16 | 보안 재점검   | 사용자 검색의 공용 계정 상태 검사·입력 검증 누락         | `packages/shared/src/index.ts`, `apps/api/src/routes.users.ts`                     | 해결 |
+| SEC-17 | 보안 재점검   | CSP의 inline style 허용                                  | `apps/api/src/app.ts`, `apps/web/nginx.conf`, React component와 CSS                | 해결 |
+| SEC-18 | 2차 재점검    | 공용 조회가 오래된 세션 role과 과도한 사용자 정보를 사용 | `apps/api/src/http.ts`, `routes.products.ts`, `routes.users.ts`                    | 해결 |
+| SEC-19 | 2차 재점검    | 로그아웃·제재 후 기존 Socket 연결이 유지됨               | `apps/api/src/socket.ts`, `socket-control.ts`, 인증·관리·신고 Router               | 해결 |
+| SEC-20 | 2차 재점검    | DB·API 외부 bind와 reverse proxy IP 전달 누락            | `docker-compose.yml`, `apps/web/nginx.conf`                                        | 해결 |
+| SEC-21 | 2차 재점검    | 실패한 송금 재시도마다 새 멱등성 키 생성                 | `apps/web/src/pages.wallet.tsx`                                                    | 해결 |
+| SEC-22 | 2차 재점검    | 숨김 메시지 미리보기와 신고 동시 검토 경쟁 상태          | `routes.chats.ts`, `routes.admin.ts`                                               | 해결 |
+| SEC-23 | 2차 재점검    | 실행 위치별 환경 파일 혼선과 CSRF 응답 무검증            | `apps/api/src/config.ts`, `apps/web/src/api.ts`                                    | 해결 |
+| SEC-24 | 2차 재점검    | 관리자 변경과 감사 로그가 별도 작업으로 저장됨           | `apps/api/src/routes.admin.ts`                                                     | 해결 |
 
 ## SEC-01: 서버 기준 인증·권한 판정으로 IDOR 차단
 
@@ -862,9 +869,440 @@
 - 검증: CSP header 단위 테스트, 저장형 XSS 문자열을 text node로 렌더링하는 Web 회귀를 포함한 UI 테스트 8개 통과, production build 통과, `dangerouslySetInnerHTML` 및 inline `style={{...}}` 정적 검색 0건
 - 상태: 해결
 
+## SEC-18: 공용 조회의 최신 권한 확인과 사용자 정보 최소화
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 접근 통제·개인정보 노출 재점검
+- 관련 기준: CWE-284 Improper Access Control, CWE-200 Exposure of Sensitive Information
+- 수정 위치:
+  - `apps/api/src/http.ts`: `optionalActiveUser`
+  - `apps/api/src/types.d.ts`: `Request.activeUser`
+  - `apps/api/src/routes.products.ts`: 상품 목록·상세의 관리자/소유자 판정과 판매자 필드
+  - `apps/api/src/routes.users.ts`: 사용자 검색·공개 프로필 반환 필드와 ACTIVE 조건
+  - `apps/web/src/types.ts`, `pages.chat.tsx`, `pages.wallet.tsx`, `pages.auth.tsx`: 용도별 공개 사용자 타입
+- 기존 내용:
+
+  ```ts
+  // 공용 상품 조회에서 DB 재검증 없이 session에 남은 role과 userId를 사용
+  const status = req.session.role === 'ADMIN' ? query.status : 'ACTIVE';
+  const privileged = req.session.userId === product.sellerId || req.session.role === 'ADMIN';
+  const sellerSelect = { id: true, username: true, displayName: true, status: true };
+  ```
+
+  ```ts
+  // 검색·공개 프로필이 계정 role/status까지 반환하고 비활성 사용자도 ID로 조회
+  select: {
+    id: true, username: true, displayName: true, bio: true,
+    role: true, status: true, createdAt: true
+  }
+  const user = await prisma.user.findUnique({ where: { id }, ... });
+  ```
+
+- 수정 후 내용:
+
+  ```ts
+  export const optionalActiveUser = asyncHandler(async (req, _res, next) => {
+    if (!req.session.userId) return next();
+    const user = await prisma.user.findUnique({
+      where: { id: req.session.userId },
+      select: { id: true, role: true, status: true },
+    });
+    if (user?.status === 'ACTIVE') req.activeUser = { id: user.id, role: user.role };
+    next();
+  });
+
+  const status = req.activeUser?.role === 'ADMIN' ? query.status : 'ACTIVE';
+  const privileged = req.activeUser?.id === product.sellerId || req.activeUser?.role === 'ADMIN';
+  ```
+
+  ```ts
+  // 검색 결과
+  select: { id: true, username: true, displayName: true }
+
+  // 공개 프로필
+  const user = await prisma.user.findFirst({
+    where: { id, status: 'ACTIVE' },
+    select: { id: true, username: true, displayName: true, bio: true, createdAt: true },
+  });
+  ```
+
+- 변경 설명:
+  - 인증이 필수는 아닌 상품 목록·상세에도 `optionalActiveUser`를 적용했다. 세션이 있으면 DB에서 현재 role과 status를 조회하고, `ACTIVE` 사용자만 요청 한정 `activeUser`로 인정한다.
+  - 탈퇴·제재되었거나 존재하지 않는 사용자의 오래된 session role로 숨김 상품을 보거나 관리자용 status 필터를 쓰지 못하게 했다.
+  - 판매자·검색 결과에서 내부 계정 상태와 role을 제거했다. 공개 프로필은 `ACTIVE` 사용자만 동일한 최소 필드로 반환한다.
+  - 프론트도 `User`, `UserSummary`, `PublicProfileUser`를 구분해 공개 API가 내부 필드를 제공한다고 가정하지 않도록 변경했다.
+- 보안 효과: 세션에 남은 과거 권한의 공용 조회 사용을 차단하고, 계정 제재 여부와 role 같은 불필요한 메타데이터 노출을 줄인다.
+- 검증: `auth-guard.test.ts`에서 비활성 optional session의 권한 미부여와 ACTIVE 사용자의 최신 role 반영 회귀 테스트 통과, API typecheck·Web UI 테스트 통과
+- 상태: 해결
+
+## SEC-19: 세션 폐기·계정 제재 시 기존 Socket 연결 종료
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 인증 수명주기 재점검
+- 관련 기준: CWE-613 Insufficient Session Expiration, CWE-284 Improper Access Control
+- 수정 위치:
+  - `apps/api/src/socket.ts`: session reload, ACTIVE 재검사, 주기 검증
+  - `apps/api/src/socket-control.ts`: 사용자별 Socket room과 강제 종료 helper
+  - `apps/api/src/server.ts`: Socket.IO server를 Express app에 연결
+  - `apps/api/src/routes.auth.ts`: 로그아웃·비밀번호 변경
+  - `apps/api/src/routes.admin.ts`: 사용자 상태 변경
+  - `apps/api/src/routes.reports.ts`: 신고 임계치 자동 휴면
+- 기존 내용:
+
+  ```ts
+  // 연결 handshake 때만 DB 상태를 확인
+  const user = await prisma.user.findUnique({
+    where: { id: request.session.userId },
+    select: { status: true },
+  });
+  if (user?.status !== 'ACTIVE') return next(new Error('채팅을 이용할 수 없습니다.'));
+
+  // 연결 후 room:join/message:send는 최초 userId를 계속 사용
+  const userId = request.session.userId!;
+  ```
+
+  로그아웃, 비밀번호 변경, 관리자 제재, 신고 임계치 자동 휴면 처리에서도 이미 연결된 Socket을 직접 종료하지 않았다.
+
+- 수정 후 내용:
+
+  ```ts
+  async function hasActiveSession(request: SocketRequest, expectedUserId: string) {
+    if (!(await reloadSession(request)) || request.session.userId !== expectedUserId) return false;
+    const user = await prisma.user.findUnique({
+      where: { id: expectedUserId },
+      select: { status: true },
+    });
+    return user?.status === 'ACTIVE';
+  }
+
+  void socket.join(joinUserSocketRoom(userId));
+  const revalidate = setInterval(() => {
+    void hasActiveSession(request, userId)
+      .then((active) => {
+        if (!active) socket.disconnect(true);
+      })
+      .catch(() => socket.disconnect(true));
+  }, 60_000);
+  ```
+
+  ```ts
+  export function disconnectUserSockets(req: Request, userId: string | undefined) {
+    if (!userId) return;
+    const io = req.app.get('io') as Server | undefined;
+    io?.in(`user:${userId}`).disconnectSockets(true);
+  }
+
+  // 로그아웃·비밀번호 변경·비활성 상태 변경·자동 휴면 직후 호출
+  disconnectUserSockets(req, userId);
+  ```
+
+- 변경 설명:
+  - 연결별로 사용자 전용 Socket room에 가입시키고, 계정 상태를 바꾸는 모든 서버 경로에서 해당 room을 즉시 종료한다.
+  - `room:join`과 `message:send` 직전 session store의 값을 reload하고 DB의 `ACTIVE` 상태를 다시 확인한다.
+  - 이벤트가 없는 장기 연결도 최대 60초마다 다시 검사한다. session reload나 DB 조회가 실패하면 허용하지 않고 연결을 종료한다.
+- 보안 효과: HTTP session이 만료·폐기되거나 계정이 제재된 뒤 기존 실시간 연결만 남아 채팅을 계속 사용하는 시간 창을 줄인다.
+- 검증: `auth-guard.test.ts`의 사용자별 Socket room 강제 종료 helper 회귀 테스트 통과, lint·typecheck·build 통과
+- 잔여 위험: 즉시 종료 경로를 거치지 않은 외부 DB 직접 변경은 주기 검사 시점까지 최대 약 60초의 지연이 있을 수 있다.
+- 상태: 해결
+
+## SEC-20: 컨테이너 공개 포트와 reverse proxy 신뢰 경계 제한
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 배포 경계·rate limit 재점검
+- 관련 기준: CWE-668 Exposure of Resource to Wrong Sphere, CWE-441 Unintended Proxy or Intermediary
+- 수정 위치:
+  - `docker-compose.yml`: DB·API loopback bind와 `TRUST_PROXY`
+  - `apps/web/nginx.conf`: 전달 IP/protocol header, 업로드 상한, 보안 header
+- 기존 내용:
+
+  ```yaml
+  db:
+    ports: ['5432:5432']
+  api:
+    ports: ['4000:4000']
+  ```
+
+  ```nginx
+  location /api/ {
+    proxy_pass http://api:4000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+  ```
+
+  DB와 API가 모든 host interface에 bind되었고, nginx가 `X-Forwarded-For`를 전달하지 않아 API rate limiter가 컨테이너 proxy 주소를 실제 client IP로 오인할 수 있었다.
+
+- 수정 후 내용:
+
+  ```yaml
+  db:
+    ports: ['127.0.0.1:5432:5432']
+  api:
+    environment:
+      TRUST_PROXY: 1
+    ports: ['127.0.0.1:4000:4000']
+  web:
+    ports: ['5173:8080']
+  ```
+
+  ```nginx
+  server_tokens off;
+  client_max_body_size 6m;
+  add_header Cross-Origin-Opener-Policy same-origin always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  ```
+
+- 변경 설명:
+  - 여러 기기 사용에 필요한 Web `5173`만 LAN에 공개하고 PostgreSQL `5432`와 API `4000`은 host loopback에만 bind했다.
+  - API는 자신 앞의 nginx 한 단계를 신뢰하고, nginx는 API·upload·Socket 경로에 client chain과 protocol을 전달한다.
+  - nginx의 요청 본문 상한을 API 이미지 상한보다 조금 크게 설정해 무제한 buffering을 막고, 버전 표시·불필요한 브라우저 권한을 줄였다.
+- 보안 효과: 같은 네트워크의 일반 사용자가 DB/API 포트에 직접 접근해 reverse proxy 경계를 우회하기 어렵고, IP 기반 rate limit이 사용자별 주소를 구분할 수 있다.
+- 검증: Compose/nginx 설정 정적 검토, README의 “외부 기기는 Web 5173만 접속” 절차와 일치 확인, format·build 통과
+- 상태: 해결
+
+## SEC-21: 송금 재시도에서 같은 멱등성 키 유지
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 거래 흐름 재점검
+- 관련 기준: CWE-362 Concurrent Execution using Shared Resource
+- 수정 위치:
+  - `apps/web/src/pages.wallet.tsx`: 송금 확인 상태와 `idempotencyKey`
+  - `apps/web/tests/ui.test.tsx`: 실패 후 재시도 회귀 테스트
+- 기존 내용:
+
+  ```ts
+  const transfer = useMutation({
+    mutationFn: () =>
+      api('/wallet/transfers', {
+        method: 'POST',
+        body: JSON.stringify({
+          receiverId: receiver?.id,
+          amount: Number(amount),
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      }),
+  });
+  ```
+
+  응답이 유실되거나 `5xx`로 보인 뒤 사용자가 같은 확인 버튼을 다시 누르면 매번 새 키가 생성되어, 서버에서 첫 요청이 성공했어도 별개 송금으로 처리될 수 있었다.
+
+- 수정 후 내용:
+
+  ```ts
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+
+  // 송금 내용을 확정할 때 한 번만 생성
+  setIdempotencyKey(crypto.randomUUID());
+  setConfirming(true);
+
+  // 실패 후 같은 내용을 다시 시도할 때 기존 키 사용
+  body: JSON.stringify({
+    receiverId: receiver.id,
+    amount: Number(amount),
+    idempotencyKey,
+  });
+  ```
+
+  금액 변경, 취소, 수신자 변경, 성공 시에는 키를 폐기해 새로운 송금 의도만 새 키를 받는다.
+
+- 변경 설명:
+  - 멱등성 키의 수명을 HTTP 호출 한 번이 아니라 사용자가 확인한 “한 건의 송금 의도”에 연결했다.
+  - 일시 오류 후 재시도는 같은 키를 사용하고, 송금 내용이 달라질 때만 새 키를 생성한다.
+- 보안 효과: 불확실한 네트워크 응답과 중복 클릭이 별개 송금으로 기록될 가능성을 줄이고 서버의 unique 멱등성 제약을 실제 UI 흐름에서도 활용한다.
+- 검증: Web UI 테스트에서 첫 송금 응답 실패 후 재시도한 두 request body의 `idempotencyKey`가 동일함을 확인하고 최종 성공까지 검증
+- 상태: 해결
+
+## SEC-22: 숨김 메시지 미리보기 차단과 신고 검토 원자적 선점
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 운영·관리자 기능 재점검
+- 관련 기준: CWE-367 Time-of-check Time-of-use Race Condition, CWE-200 Exposure of Sensitive Information
+- 수정 위치:
+  - `apps/api/src/routes.chats.ts`: 1:1 채팅방 최근 메시지
+  - `apps/api/src/routes.admin.ts`: `PATCH /reports/:id/review`
+- 기존 내용:
+
+  ```ts
+  messages: { orderBy: { createdAt: 'desc' }, take: 1 }
+  ```
+
+  ```ts
+  const before = await prisma.report.findUnique({ where: { id } });
+  if (before.status !== 'PENDING') throw new HttpError(409, ...);
+  const report = await prisma.report.update({
+    where: { id },
+    data: { status: decision, reviewedBy, reviewedAt: new Date() },
+  });
+  ```
+
+  숨김 처리된 메시지도 채팅방 목록의 최근 메시지에 나타날 수 있었고, 두 관리자가 동시에 `PENDING`을 확인하면 모두 검토 갱신을 수행할 수 있었다.
+
+- 수정 후 내용:
+
+  ```ts
+  messages: {
+    where: { status: 'VISIBLE' },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+  }
+  ```
+
+  ```ts
+  const report = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.report.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: nextStatus, reviewedBy: req.session.userId, reviewedAt: new Date() },
+    });
+    if (claimed.count !== 1)
+      throw new HttpError(409, 'REPORT_ALREADY_REVIEWED', '이미 검토한 신고입니다.');
+    return tx.report.findUniqueOrThrow({ where: { id } });
+  });
+  ```
+
+- 변경 설명:
+  - 메시지 본문 조회뿐 아니라 채팅방 목록의 preview에도 동일한 `VISIBLE` 조건을 적용했다.
+  - 신고 검토는 `id AND status=PENDING` 조건부 update로 한 요청만 원자적으로 선점한다. 변경 행이 0개면 두 번째 검토를 `409`로 종료한다.
+  - 대상 복원도 선점에 성공한 같은 transaction 안에서만 수행한다.
+- 보안 효과: 관리자가 숨긴 콘텐츠가 다른 조회 경로로 다시 노출되는 것을 막고, 동시에 상충하는 신고 결정을 내리는 경쟁 상태를 차단한다.
+- 검증: Prisma query 조건·transaction 경계 코드 검토, lint·typecheck·build 통과
+- 상태: 해결
+
+## SEC-23: 환경 설정 로딩 고정과 CSRF 응답 검증
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 구성·CSRF 방어 재점검
+- 관련 기준: CWE-16 Configuration, CWE-345 Insufficient Verification of Data Authenticity
+- 수정 위치:
+  - `apps/api/src/config.ts`: `.env` 경로, Origin·로그 레벨·운영 비밀 검증
+  - `apps/web/src/api.ts`: CSRF endpoint 응답과 token 형식 검증
+  - `apps/web/src/pages.auth.tsx`: 비밀번호 변경 후 CSRF cache 폐기
+- 기존 내용:
+
+  ```ts
+  dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+  dotenv.config();
+  WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+  SESSION_SECRET: z.string().min(32),
+  LOG_LEVEL: z.string().default('info'),
+  ```
+
+  실행 위치에 따라 다른 `.env`가 두 차례 후보가 되었고, 운영 환경에서도 HTTP Origin이나 예시 형태의 session secret이 통과할 수 있었다.
+
+  ```ts
+  const response = await fetch('/api/auth/csrf', { credentials: 'include' });
+  const data = await response.json();
+  csrfToken = data.csrfToken;
+  ```
+
+  CSRF endpoint의 HTTP 상태와 token 자료형·형식을 확인하지 않고 cache했다.
+
+- 수정 후 내용:
+
+  ```ts
+  const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
+  dotenv.config({ path: path.join(repositoryRoot, '.env') });
+
+  // path나 trailing slash가 없는 정확한 http(s) origin만 허용
+  return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+
+  // production에서는 HTTPS와 48자 이상의 placeholder가 아닌 secret 요구
+  if (value.NODE_ENV === 'production') {
+    if (!value.WEB_ORIGIN.startsWith('https://')) ctx.addIssue(...);
+    if (value.SESSION_SECRET.length < 48 || /replace|change|example|password|secret/i.test(...))
+      ctx.addIssue(...);
+  }
+  ```
+
+  ```ts
+  const response = await fetch(`${API}/api/auth/csrf`, { credentials: 'include' });
+  if (!response.ok) throw new Error('보안 토큰을 가져오지 못했습니다.');
+  const data = await response.json().catch(() => ({}));
+  if (typeof data.csrfToken !== 'string' || !/^[A-Za-z0-9_-]{40,64}$/.test(data.csrfToken))
+    throw new Error('보안 토큰 응답이 올바르지 않습니다.');
+  if (data.error?.code === 'CSRF_INVALID') resetCsrf();
+  ```
+
+- 변경 설명:
+  - 현재 작업 디렉터리와 무관하게 저장소의 `.env` 한 파일만 명시적으로 읽는다. 상위 폴더나 실행 폴더의 우연한 `.env`를 fallback으로 사용하지 않는다.
+  - CORS/Socket Origin을 경로가 없는 정확한 http(s) Origin으로 제한하고, 운영 환경은 HTTPS와 강화된 session secret 조건을 만족하지 않으면 시작에 실패한다.
+  - 로그 레벨도 logger가 지원하는 enum만 허용한다.
+  - 프론트는 성공한 CSRF 응답의 base64url token만 cache하며, 서버가 `CSRF_INVALID`를 반환하거나 비밀번호 변경으로 session이 폐기되면 cache를 비운다.
+- 보안 효과: 잘못된 실행 위치·설정값 때문에 의도하지 않은 DB/Origin/secret을 사용하는 위험과 비정상 CSRF 응답을 후속 변경 요청에 사용하는 위험을 줄인다.
+- 검증: lint·typecheck·production build·Web UI 테스트 통과, `.env` 검색 결과 저장소 내부 실제 `.env`와 공개용 `.env.example`만 존재함을 확인
+- 상태: 해결
+
+## SEC-24: 관리자 변경과 감사 로그를 같은 transaction으로 저장
+
+- 변경일: 2026-07-23
+- 발견 단계: 2차 감사 추적 무결성 재점검
+- 관련 기준: CWE-778 Insufficient Logging, CWE-703 Improper Check or Handling of Exceptional Conditions
+- 수정 위치:
+  - `apps/api/src/routes.admin.ts`: `audit`
+  - `PATCH /users/:id/status`
+  - `PATCH /products/:id/status`
+  - `PATCH /reports/:id/review`
+  - `PATCH /messages/:id/hide`
+- 기존 내용:
+
+  ```ts
+  const user = await prisma.user.update({
+    where: { id },
+    data: { status },
+  });
+  await audit(req.session.userId!, 'USER_STATUS_CHANGE', 'USER', id, before, user);
+  ```
+
+  ```ts
+  async function audit(...) {
+    await prisma.adminAuditLog.create({ data: { ... } });
+  }
+  ```
+
+  대상 변경과 `AdminAuditLog` 생성이 별도 DB 작업이었다. 대상 변경이 commit된 직후 로그 생성이 실패하면 API는 오류를 반환하지만 관리자 조치는 이미 적용되어, 기록 없는 변경과 잘못된 재시도가 생길 수 있었다. 상품 상태 변경, 신고 검토, 메시지 숨김도 같은 구조였다.
+
+- 수정 후 내용:
+
+  ```ts
+  async function audit(tx: Prisma.TransactionClient, ...) {
+    await tx.adminAuditLog.create({ data: { ... } });
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const before = await tx.user.findUnique({ where: { id }, ... });
+    const updated = await tx.user.update({
+      where: { id },
+      data: { status },
+    });
+    await audit(
+      tx,
+      req.session.userId!,
+      'USER_STATUS_CHANGE',
+      'USER',
+      id,
+      before,
+      updated,
+    );
+    return updated;
+  });
+  ```
+
+  동일한 형태로 상품 상태 변경, 신고의 조건부 검토·대상 복원, 메시지 숨김도 각각 하나의 Prisma transaction 안에서 감사 로그를 생성한다.
+
+- 변경 설명:
+  - `audit`가 전역 `prisma` 대신 호출자의 `Prisma.TransactionClient`를 사용하도록 변경했다.
+  - 변경 전 조회, 대상 변경, 연관 대상 복원, 감사 로그 생성을 하나의 transaction으로 묶었다.
+  - 감사 로그 생성에 실패하면 대상 변경도 rollback되고, 대상 변경이 commit되면 해당 변경의 before/after 감사 로그도 반드시 함께 존재한다.
+  - Socket 강제 종료처럼 DB 외부의 후속 조치는 transaction commit 뒤에만 실행한다.
+- 보안 효과: 관리자 조치의 추적 가능성과 데이터 일관성을 보장하고, 부분 실패로 인한 미기록 제재·복원·숨김 처리를 방지한다.
+- 검증: lint·typecheck 통과, 네 관리자 mutation의 transaction client 사용 정적 검토
+- 상태: 해결
+
 ## 2026-07-23 재점검 검증 제한
 
-- DB 비의존 보안 테스트 8개, Web UI 테스트 8개, lint, typecheck, production build는 통과했다.
+- 2차 점검까지 DB 비의존 API 보안 테스트 11개와 Web UI 테스트 9개, lint, typecheck, production build, format check, `git diff --check`가 통과했다.
 - PostgreSQL이 필요한 API 통합 테스트에는 검증·malformed JSON·경로 조작·비활성 session 검색 시나리오를 추가했으나, 점검 시점에 Docker Desktop의 WSL integration이 꺼져 있어 전체 DB 통합 suite를 재실행하지 못했다. Docker 연결 복구 후 `npm test`를 다시 실행해야 한다.
 - 최신 npm advisory 재조회는 dependency metadata를 외부 npm registry로 전송하는 작업이 별도 승인되지 않아 실행하지 않았다. 마지막으로 완료된 `npm audit` 결과는 2026-07-22의 0 vulnerabilities이며, 현재 시점 결과로 간주해서는 안 된다.
 

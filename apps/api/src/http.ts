@@ -40,6 +40,16 @@ export const requireAuth = asyncHandler(async (req, _res, next) => {
   next();
 });
 
+export const optionalActiveUser = asyncHandler(async (req, _res, next) => {
+  if (!req.session.userId) return next();
+  const user = await prisma.user.findUnique({
+    where: { id: req.session.userId },
+    select: { id: true, role: true, status: true },
+  });
+  if (user?.status === 'ACTIVE') req.activeUser = { id: user.id, role: user.role };
+  next();
+});
+
 export const requireAdmin = [
   requireAuth,
   (req: Request, _res: Response, next: NextFunction) => {

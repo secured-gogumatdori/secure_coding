@@ -7,6 +7,8 @@ export interface User {
   status: string;
   createdAt: string;
 }
+export type UserSummary = Pick<User, 'id' | 'username' | 'displayName'>;
+export type PublicProfileUser = Pick<User, 'id' | 'username' | 'displayName' | 'bio' | 'createdAt'>;
 export interface Product {
   id: string;
   sellerId: string;
@@ -17,7 +19,7 @@ export interface Product {
   status: string;
   createdAt: string;
   updatedAt: string;
-  seller?: Pick<User, 'id' | 'username' | 'displayName' | 'status'>;
+  seller?: UserSummary;
 }
 export interface Message {
   id: string;
@@ -31,6 +33,6 @@ export interface Message {
 export interface Room {
   id: string;
   type: 'GLOBAL' | 'DIRECT';
-  members?: Array<{ user: Pick<User, 'id' | 'username' | 'displayName'> }>;
+  members?: Array<{ user: UserSummary }>;
   messages?: Message[];
 }

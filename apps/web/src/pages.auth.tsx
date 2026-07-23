@@ -4,9 +4,9 @@ import { useForm } from 'react-hook-form';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { z } from 'zod';
 import { loginSchema, passwordChangeSchema, profileSchema, signupSchema } from '@tiny/shared';
-import { api } from './api';
+import { api, resetCsrf } from './api';
 import { useMe } from './App';
-import type { User } from './types';
+import type { PublicProfileUser } from './types';
 
 type Login = z.infer<typeof loginSchema>;
 type Signup = z.infer<typeof signupSchema>;
@@ -96,7 +96,7 @@ export function PublicProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const me = useMe();
-  const query = useQuery<{ user: User }>({
+  const query = useQuery<{ user: PublicProfileUser }>({
     queryKey: ['user', id],
     queryFn: () => api(`/users/${id}`),
     enabled: !!id,
@@ -113,7 +113,6 @@ export function PublicProfile() {
     <article className="card">
       <h1>{user.displayName}</h1>
       <p>@{user.username}</p>
-      <span className="status">{user.status}</span>
       <p>{user.bio || '아직 소개글이 없습니다.'}</p>
       <p className="muted">가입일 {new Date(user.createdAt).toLocaleDateString('ko-KR')}</p>
       {me.data?.user && me.data.user.id !== user.id && (
@@ -151,6 +150,7 @@ export function MyPage() {
     mutationFn: (v: z.infer<typeof passwordChangeSchema>) =>
       api('/auth/change-password', { method: 'POST', body: JSON.stringify(v) }),
     onSuccess: () => {
+      resetCsrf();
       client.setQueryData(['me'], { user: null });
       navigate('/login');
     },

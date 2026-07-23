@@ -16,7 +16,7 @@ chatsRouter.get(
       where: { type: 'DIRECT', members: { some: { userId: req.session.userId } } },
       include: {
         members: { include: { user: { select: { id: true, username: true, displayName: true } } } },
-        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+        messages: { where: { status: 'VISIBLE' }, orderBy: { createdAt: 'desc' }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     });

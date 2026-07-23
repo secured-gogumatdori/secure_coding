@@ -12,7 +12,8 @@ vi.mock('../src/db.js', () => ({
   },
 }));
 
-import { HttpError, requireAuth } from '../src/http.js';
+import { HttpError, optionalActiveUser, requireAuth } from '../src/http.js';
+import { disconnectUserSockets } from '../src/socket-control.js';
 
 function requestWithSession(userId = '00000000-0000-4000-8000-000000000001') {
   return { session: { userId } } as unknown as Request;
@@ -54,10 +55,57 @@ describe('공용 인증 guard와 검색 입력', () => {
     expect(request.session.role).toBe('ADMIN');
   });
 
+  it('선택 인증에서는 비활성 세션에 조회 특권을 부여하지 않는다', async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000001',
+      role: 'ADMIN',
+      status: 'BANNED',
+    });
+    const request = requestWithSession();
+    const next = vi.fn();
+
+    optionalActiveUser(request, {} as Response, next as NextFunction);
+
+    await vi.waitFor(() => expect(next).toHaveBeenCalledOnce());
+    expect(next).toHaveBeenCalledWith();
+    expect(request.activeUser).toBeUndefined();
+  });
+
+  it('선택 인증에서는 ACTIVE 사용자의 최신 식별자와 role만 사용한다', async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000001',
+      role: 'ADMIN',
+      status: 'ACTIVE',
+    });
+    const request = requestWithSession();
+    const next = vi.fn();
+
+    optionalActiveUser(request, {} as Response, next as NextFunction);
+
+    await vi.waitFor(() => expect(next).toHaveBeenCalledOnce());
+    expect(request.activeUser).toEqual({
+      id: '00000000-0000-4000-8000-000000000001',
+      role: 'ADMIN',
+    });
+  });
+
   it('빈 값과 문자열 이외의 검색 query를 거부한다', () => {
     expect(userSearchSchema.safeParse({ q: '' }).success).toBe(false);
     expect(userSearchSchema.safeParse({ q: ['admin'] }).success).toBe(false);
     expect(userSearchSchema.safeParse({ q: { $ne: '' } }).success).toBe(false);
     expect(userSearchSchema.safeParse({ q: "' OR 1=1 --" }).success).toBe(true);
+  });
+
+  it('사용자 제재·로그아웃 시 해당 사용자의 Socket만 강제 종료한다', () => {
+    const disconnectSockets = vi.fn();
+    const inRoom = vi.fn(() => ({ disconnectSockets }));
+    const request = {
+      app: { get: vi.fn(() => ({ in: inRoom })) },
+    } as unknown as Request;
+
+    disconnectUserSockets(request, '00000000-0000-4000-8000-000000000001');
+
+    expect(inRoom).toHaveBeenCalledWith('user:00000000-0000-4000-8000-000000000001');
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
   });
 });

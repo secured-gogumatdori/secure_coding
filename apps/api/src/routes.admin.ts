@@ -5,13 +5,16 @@ import {
   idSchema,
   reviewReportSchema,
 } from '@tiny/shared';
+import type { Prisma } from '@prisma/client';
 import { prisma } from './db.js';
 import { asyncHandler, HttpError, jsonBigInt, parse, requireAdmin } from './http.js';
+import { disconnectUserSockets } from './socket-control.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
 
 async function audit(
+  tx: Prisma.TransactionClient,
   adminId: string,
   action: string,
   targetType: string,
@@ -19,7 +22,7 @@ async function audit(
   beforeData: unknown,
   afterData: unknown,
 ) {
-  await prisma.adminAuditLog.create({
+  await tx.adminAuditLog.create({
     data: {
       adminId,
       action,
@@ -71,23 +74,27 @@ adminRouter.patch(
   asyncHandler(async (req, res) => {
     const id = parse(idSchema, req.params.id);
     const { status } = parse(adminStatusSchema, req.body);
-    const before = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, status: true, role: true },
+    const user = await prisma.$transaction(async (tx) => {
+      const before = await tx.user.findUnique({
+        where: { id },
+        select: { id: true, status: true, role: true },
+      });
+      if (!before) throw new HttpError(404, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.');
+      if (before.role === 'ADMIN' && id === req.session.userId && status !== 'ACTIVE')
+        throw new HttpError(
+          400,
+          'SELF_ADMIN_LOCK_DENIED',
+          '현재 관리자 계정을 비활성화할 수 없습니다.',
+        );
+      const updated = await tx.user.update({
+        where: { id },
+        data: { status },
+        select: { id: true, username: true, displayName: true, status: true },
+      });
+      await audit(tx, req.session.userId!, 'USER_STATUS_CHANGE', 'USER', id, before, updated);
+      return updated;
     });
-    if (!before) throw new HttpError(404, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.');
-    if (before.role === 'ADMIN' && id === req.session.userId && status !== 'ACTIVE')
-      throw new HttpError(
-        400,
-        'SELF_ADMIN_LOCK_DENIED',
-        '현재 관리자 계정을 비활성화할 수 없습니다.',
-      );
-    const user = await prisma.user.update({
-      where: { id },
-      data: { status },
-      select: { id: true, username: true, displayName: true, status: true },
-    });
-    await audit(req.session.userId!, 'USER_STATUS_CHANGE', 'USER', id, before, user);
+    if (status !== 'ACTIVE') disconnectUserSockets(req, id);
     res.json({ user });
   }),
 );
@@ -109,16 +116,19 @@ adminRouter.patch(
   asyncHandler(async (req, res) => {
     const id = parse(idSchema, req.params.id);
     const { status } = parse(adminProductStatusSchema, req.body);
-    const before = await prisma.product.findUnique({ where: { id } });
-    if (!before) throw new HttpError(404, 'PRODUCT_NOT_FOUND', '상품을 찾을 수 없습니다.');
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
-        status,
-        deletedAt: status === 'DELETED' ? new Date() : status === 'ACTIVE' ? null : undefined,
-      },
+    const product = await prisma.$transaction(async (tx) => {
+      const before = await tx.product.findUnique({ where: { id } });
+      if (!before) throw new HttpError(404, 'PRODUCT_NOT_FOUND', '상품을 찾을 수 없습니다.');
+      const updated = await tx.product.update({
+        where: { id },
+        data: {
+          status,
+          deletedAt: status === 'DELETED' ? new Date() : status === 'ACTIVE' ? null : undefined,
+        },
+      });
+      await audit(tx, req.session.userId!, 'PRODUCT_STATUS_CHANGE', 'PRODUCT', id, before, updated);
+      return updated;
     });
-    await audit(req.session.userId!, 'PRODUCT_STATUS_CHANGE', 'PRODUCT', id, before, product);
     res.json(jsonBigInt({ product }));
   }),
 );
@@ -144,19 +154,22 @@ adminRouter.patch(
   asyncHandler(async (req, res) => {
     const id = parse(idSchema, req.params.id);
     const input = parse(reviewReportSchema, req.body);
-    const before = await prisma.report.findUnique({ where: { id } });
-    if (!before) throw new HttpError(404, 'REPORT_NOT_FOUND', '신고를 찾을 수 없습니다.');
-    if (before.status !== 'PENDING')
-      throw new HttpError(409, 'REPORT_ALREADY_REVIEWED', '이미 검토한 신고입니다.');
     const report = await prisma.$transaction(async (tx) => {
-      const updated = await tx.report.update({
-        where: { id },
+      const before = await tx.report.findUnique({ where: { id } });
+      if (!before) throw new HttpError(404, 'REPORT_NOT_FOUND', '신고를 찾을 수 없습니다.');
+      if (before.status !== 'PENDING')
+        throw new HttpError(409, 'REPORT_ALREADY_REVIEWED', '이미 검토한 신고입니다.');
+      const claimed = await tx.report.updateMany({
+        where: { id, status: 'PENDING' },
         data: {
           status: input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
           reviewedBy: req.session.userId,
           reviewedAt: new Date(),
         },
       });
+      if (claimed.count !== 1)
+        throw new HttpError(409, 'REPORT_ALREADY_REVIEWED', '이미 검토한 신고입니다.');
+      const updated = await tx.report.findUniqueOrThrow({ where: { id } });
       if (input.restoreTarget && input.decision === 'REJECT') {
         if (updated.targetProductId)
           await tx.product.update({
@@ -166,9 +179,9 @@ adminRouter.patch(
         if (updated.targetUserId)
           await tx.user.update({ where: { id: updated.targetUserId }, data: { status: 'ACTIVE' } });
       }
+      await audit(tx, req.session.userId!, 'REPORT_REVIEW', 'REPORT', id, before, updated);
       return updated;
     });
-    await audit(req.session.userId!, 'REPORT_REVIEW', 'REPORT', id, before, report);
     res.json({ report });
   }),
 );
@@ -192,13 +205,16 @@ adminRouter.patch(
   '/messages/:id/hide',
   asyncHandler(async (req, res) => {
     const id = parse(idSchema, req.params.id);
-    const before = await prisma.message.findUnique({ where: { id } });
-    if (!before) throw new HttpError(404, 'MESSAGE_NOT_FOUND', '메시지를 찾을 수 없습니다.');
-    const message = await prisma.message.update({
-      where: { id },
-      data: { status: 'HIDDEN', hiddenAt: new Date() },
+    const message = await prisma.$transaction(async (tx) => {
+      const before = await tx.message.findUnique({ where: { id } });
+      if (!before) throw new HttpError(404, 'MESSAGE_NOT_FOUND', '메시지를 찾을 수 없습니다.');
+      const updated = await tx.message.update({
+        where: { id },
+        data: { status: 'HIDDEN', hiddenAt: new Date() },
+      });
+      await audit(tx, req.session.userId!, 'MESSAGE_HIDE', 'MESSAGE', id, before, updated);
+      return updated;
     });
-    await audit(req.session.userId!, 'MESSAGE_HIDE', 'MESSAGE', id, before, message);
     res.json({ message });
   }),
 );

@@ -6,8 +6,24 @@ import { canAccessRoom, createMessage } from './chat-service.js';
 import { prisma } from './db.js';
 import { logger } from './logger.js';
 import { sessionMiddleware } from './session.js';
+import { joinUserSocketRoom } from './socket-control.js';
 
 type SocketRequest = Request & { session: Express.Request['session'] };
+
+function reloadSession(request: SocketRequest) {
+  return new Promise<boolean>((resolve) =>
+    request.session.reload((error) => resolve(!error && !!request.session.userId)),
+  );
+}
+
+async function hasActiveSession(request: SocketRequest, expectedUserId: string) {
+  if (!(await reloadSession(request)) || request.session.userId !== expectedUserId) return false;
+  const user = await prisma.user.findUnique({
+    where: { id: expectedUserId },
+    select: { status: true },
+  });
+  return user?.status === 'ACTIVE';
+}
 
 export function createSocketServer(server: HttpServer) {
   const io = new Server(server, {
@@ -35,8 +51,22 @@ export function createSocketServer(server: HttpServer) {
   io.on('connection', (socket) => {
     const request = socket.request as SocketRequest;
     const userId = request.session.userId!;
+    void socket.join(joinUserSocketRoom(userId));
+    const revalidate = setInterval(() => {
+      void hasActiveSession(request, userId)
+        .then((active) => {
+          if (!active) socket.disconnect(true);
+        })
+        .catch(() => socket.disconnect(true));
+    }, 60_000);
+    revalidate.unref();
+    socket.on('disconnect', () => clearInterval(revalidate));
     socket.on('room:join', async (roomId: string, callback?: (value: object) => void) => {
       try {
+        if (!(await hasActiveSession(request, userId))) {
+          socket.disconnect(true);
+          throw new Error('인증이 만료되었습니다.');
+        }
         if (typeof roomId !== 'string' || !(await canAccessRoom(userId, roomId)))
           throw new Error('접근할 수 없습니다.');
         await socket.join(roomId);
@@ -52,6 +82,10 @@ export function createSocketServer(server: HttpServer) {
         callback?: (value: object) => void,
       ) => {
         try {
+          if (!(await hasActiveSession(request, userId))) {
+            socket.disconnect(true);
+            throw new Error('인증이 만료되었습니다.');
+          }
           const now = Date.now();
           const recent = (buckets.get(userId) ?? []).filter((time) => now - time < 10_000);
           if (recent.length >= 10) throw new Error('요청이 너무 많습니다.');

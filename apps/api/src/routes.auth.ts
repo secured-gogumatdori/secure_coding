@@ -5,6 +5,7 @@ import { loginSchema, passwordChangeSchema, profileSchema, signupSchema } from '
 import { config } from './config.js';
 import { pgPool, prisma } from './db.js';
 import { asyncHandler, HttpError, parse, publicUser, requireAuth } from './http.js';
+import { disconnectUserSockets } from './socket-control.js';
 
 export const authRouter = Router();
 const hashOptions = {
@@ -69,6 +70,8 @@ authRouter.post(
 );
 
 authRouter.post('/logout', (req, res, next) => {
+  const userId = req.session.userId;
+  disconnectUserSockets(req, userId);
   req.session.destroy((error) => {
     if (error) return next(error);
     res.clearCookie('tiny.sid');
@@ -115,6 +118,7 @@ authRouter.post(
       data: { passwordHash, passwordChangedAt: new Date() },
     });
     await pgPool.query("DELETE FROM session WHERE sess->>'userId' = $1", [user.id]);
+    disconnectUserSockets(req, user.id);
     res.clearCookie('tiny.sid');
     res.status(204).end();
   }),

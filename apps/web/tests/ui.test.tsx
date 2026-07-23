@@ -7,6 +7,7 @@ import { App } from '../src/App';
 import { AuthPage } from '../src/pages.auth';
 import { ProductFormPage, ProductList } from '../src/pages.products';
 import { WalletPage } from '../src/pages.wallet';
+import { resetCsrf } from '../src/api';
 
 function renderPage(node: React.ReactNode, path = '/') {
   const client = new QueryClient({
@@ -23,7 +24,10 @@ function response(data: unknown, status = 200) {
     new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } }),
   );
 }
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  resetCsrf();
+  vi.restoreAllMocks();
+});
 
 describe('폼 검증과 오류 표시', () => {
   it('로그인 폼이 잘못된 아이디와 빈 비밀번호를 거부한다', async () => {
@@ -46,7 +50,7 @@ describe('폼 검증과 오류 표시', () => {
   it('로그인 API 오류를 사용자에게 표시한다', async () => {
     const mock = vi.fn((input: RequestInfo | URL) =>
       String(input).includes('/csrf')
-        ? response({ csrfToken: 'token' })
+        ? response({ csrfToken: 'a'.repeat(43) })
         : response({ error: { message: '아이디 또는 비밀번호를 확인해 주세요.' } }, 401),
     );
     vi.stubGlobal('fetch', mock);
@@ -171,5 +175,50 @@ describe('권한 UI와 데모 지갑', () => {
     await userEvent.type(screen.getByLabelText('금액 (정수 KRW)'), '12000');
     await userEvent.click(screen.getByRole('button', { name: '송금 내용 확인' }));
     expect(screen.getByText(/12,000원/)).toBeInTheDocument();
+  });
+
+  it('송금 실패 후 재시도해도 같은 idempotency key를 사용한다', async () => {
+    const transferBodies: Array<{ idempotencyKey: string }> = [];
+    let transferAttempts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/auth/csrf')) return response({ csrfToken: 'b'.repeat(43) });
+        if (url.includes('/users/search'))
+          return response({
+            users: [
+              {
+                id: '00000000-0000-4000-8000-000000000010',
+                username: 'target',
+                displayName: '받는사람',
+              },
+            ],
+          });
+        if (url.includes('/wallet/transfers') && init?.method === 'POST') {
+          transferBodies.push(JSON.parse(String(init.body)));
+          transferAttempts += 1;
+          return transferAttempts === 1
+            ? response(
+                { error: { code: 'TEMPORARY', message: '잠시 후 다시 시도해 주세요.' } },
+                503,
+              )
+            : response({ transfer: { id: 'transfer-id' } }, 201);
+        }
+        return response({ wallet: { balance: '100000' } });
+      }),
+    );
+    renderPage(<WalletPage />);
+    await userEvent.type(screen.getByLabelText('받는 사용자 검색'), '받는');
+    await userEvent.click(await screen.findByRole('button', { name: /받는사람/ }));
+    await userEvent.type(screen.getByLabelText('금액 (정수 KRW)'), '12000');
+    await userEvent.click(screen.getByRole('button', { name: '송금 내용 확인' }));
+    await userEvent.click(screen.getByRole('button', { name: '확인하고 송금' }));
+    expect(await screen.findByText('잠시 후 다시 시도해 주세요.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '확인하고 송금' }));
+    expect(await screen.findByText('송금이 완료되었습니다.')).toBeInTheDocument();
+
+    expect(transferBodies).toHaveLength(2);
+    expect(transferBodies[0]!.idempotencyKey).toBe(transferBodies[1]!.idempotencyKey);
   });
 });

@@ -3,6 +3,7 @@ import { reportSchema } from '@tiny/shared';
 import { config } from './config.js';
 import { prisma } from './db.js';
 import { asyncHandler, HttpError, parse, requireAuth } from './http.js';
+import { disconnectUserSockets } from './socket-control.js';
 
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth);
@@ -24,6 +25,7 @@ reportsRouter.post(
       if (product.sellerId === reporterId)
         throw new HttpError(400, 'SELF_REPORT_DENIED', '본인 상품을 신고할 수 없습니다.');
     }
+    let restrictedUserId: string | undefined;
     const report = await prisma.$transaction(async (tx) => {
       const duplicate = await tx.report.findFirst({
         where: {
@@ -56,10 +58,13 @@ reportsRouter.post(
           where: { id: input.targetProductId! },
           data: { status: 'HIDDEN' },
         });
-      if (input.targetType === 'USER' && count >= config.USER_REPORT_THRESHOLD)
+      if (input.targetType === 'USER' && count >= config.USER_REPORT_THRESHOLD) {
         await tx.user.update({ where: { id: input.targetUserId! }, data: { status: 'DORMANT' } });
+        restrictedUserId = input.targetUserId;
+      }
       return created;
     });
+    disconnectUserSockets(req, restrictedUserId);
     req.log?.warn(
       { event: 'report_created', reporterId, reportId: report.id, targetType: report.targetType },
       'security event',

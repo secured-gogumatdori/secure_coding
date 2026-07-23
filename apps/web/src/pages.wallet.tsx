@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from './api';
-import type { User } from './types';
+import type { UserSummary } from './types';
 
 const warning = (
   <div className="notice">
@@ -21,30 +21,34 @@ interface Transfer {
 export function WalletPage() {
   const client = useQueryClient();
   const [q, setQ] = useState('');
-  const [receiver, setReceiver] = useState<User | null>(null);
+  const [receiver, setReceiver] = useState<UserSummary | null>(null);
   const [amount, setAmount] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const wallet = useQuery<{ wallet: { balance: string } }>({
     queryKey: ['wallet'],
     queryFn: () => api('/wallet'),
   });
-  const users = useQuery<{ users: User[] }>({
+  const users = useQuery<{ users: UserSummary[] }>({
     queryKey: ['user-search', q],
     queryFn: () => api(`/users/search?q=${encodeURIComponent(q)}`),
     enabled: q.length > 0,
   });
   const transfer = useMutation({
-    mutationFn: () =>
-      api('/wallet/transfers', {
+    mutationFn: () => {
+      if (!receiver || !idempotencyKey) throw new Error('송금 내용을 다시 확인해 주세요.');
+      return api('/wallet/transfers', {
         method: 'POST',
         body: JSON.stringify({
-          receiverId: receiver?.id,
+          receiverId: receiver.id,
           amount: Number(amount),
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey,
         }),
-      }),
+      });
+    },
     onSuccess: () => {
       setConfirming(false);
+      setIdempotencyKey(null);
       setAmount('');
       setReceiver(null);
       void client.invalidateQueries({ queryKey: ['wallet'] });
@@ -93,6 +97,7 @@ export function WalletPage() {
                   onChange={(e) => {
                     setAmount(e.target.value);
                     setConfirming(false);
+                    setIdempotencyKey(null);
                   }}
                 />
               </label>
@@ -100,7 +105,10 @@ export function WalletPage() {
                 <button
                   type="button"
                   disabled={!Number.isInteger(Number(amount)) || Number(amount) <= 0}
-                  onClick={() => setConfirming(true)}
+                  onClick={() => {
+                    setIdempotencyKey(crypto.randomUUID());
+                    setConfirming(true);
+                  }}
                 >
                   송금 내용 확인
                 </button>
@@ -121,7 +129,10 @@ export function WalletPage() {
                     <button
                       className="secondary"
                       type="button"
-                      onClick={() => setConfirming(false)}
+                      onClick={() => {
+                        setConfirming(false);
+                        setIdempotencyKey(null);
+                      }}
                     >
                       취소
                     </button>
@@ -135,6 +146,7 @@ export function WalletPage() {
                   onClick={() => {
                     setReceiver(null);
                     setConfirming(false);
+                    setIdempotencyKey(null);
                   }}
                 >
                   받는 분 변경
