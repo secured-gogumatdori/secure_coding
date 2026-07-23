@@ -36,6 +36,9 @@ export const productQuerySchema = z.object({
 });
 export const messageSchema = z.object({ content: z.string().trim().min(1).max(500) });
 export const directRoomSchema = z.object({ userId: idSchema });
+export const userSearchSchema = z.object({
+  q: z.string().trim().min(1).max(30),
+});
 export const reportSchema = z
   .object({
     targetType: z.enum(['USER', 'PRODUCT']),

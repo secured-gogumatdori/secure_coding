@@ -47,7 +47,7 @@ app.use(
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'", config.WEB_ORIGIN],
         scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'"],
       },
     },
     crossOriginResourcePolicy: { policy: 'same-site' },
@@ -125,5 +125,8 @@ app.use('/api/wallet', walletRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api', (_req, _res, next) =>
   next(new HttpError(404, 'NOT_FOUND', 'API 경로를 찾을 수 없습니다.')),
+);
+app.use((_req, _res, next) =>
+  next(new HttpError(404, 'NOT_FOUND', '요청한 경로를 찾을 수 없습니다.')),
 );
 app.use(errorHandler);

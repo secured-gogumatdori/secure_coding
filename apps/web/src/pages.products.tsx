@@ -120,7 +120,7 @@ export function ProductDetail() {
     <article className="card">
       <div className="grid">
         <img
-          style={{ width: '100%', borderRadius: 12 }}
+          className="product-detail-image"
           src={`/uploads/${encodeURIComponent(p.imagePath)}`}
           alt={`${p.name} 상품 사진`}
         />
@@ -128,7 +128,7 @@ export function ProductDetail() {
           <span className="status">{p.status}</span>
           <h1>{p.name}</h1>
           <p className="price">{won(p.price)}</p>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{p.description}</p>
+          <p className="product-description">{p.description}</p>
           {p.seller && (
             <p>
               판매자{' '}

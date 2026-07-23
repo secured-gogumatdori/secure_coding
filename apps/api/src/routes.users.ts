@@ -1,17 +1,15 @@
 import { Router } from 'express';
-import { idSchema } from '@tiny/shared';
+import { idSchema, userSearchSchema } from '@tiny/shared';
 import { prisma } from './db.js';
-import { asyncHandler, HttpError, parse, publicUser } from './http.js';
+import { asyncHandler, HttpError, parse, publicUser, requireAuth } from './http.js';
 
 export const usersRouter = Router();
 
 usersRouter.get(
   '/search',
+  requireAuth,
   asyncHandler(async (req, res) => {
-    if (!req.session.userId) throw new HttpError(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
-    const q = String(req.query.q ?? '')
-      .trim()
-      .slice(0, 30);
+    const { q } = parse(userSearchSchema, req.query);
     const users = await prisma.user.findMany({
       where: {
         status: 'ACTIVE',

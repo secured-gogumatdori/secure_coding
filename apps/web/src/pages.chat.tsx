@@ -154,7 +154,7 @@ export function ChatPage() {
         ))}
       </div>
       <form className="toolbar" onSubmit={send}>
-        <label className="field" style={{ flex: 1 }}>
+        <label className="field message-field">
           메시지
           <input
             value={content}

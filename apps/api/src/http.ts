@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
+import multer from 'multer';
 import { ZodError, type ZodType } from 'zod';
 import { prisma } from './db.js';
 
@@ -64,11 +65,30 @@ export function verifyCsrf(req: Request, _res: Response, next: NextFunction) {
 export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
   if (error instanceof ZodError)
     return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: '입력값을 확인해 주세요.' },
+      requestId: req.id,
+    });
+  if (error instanceof multer.MulterError) {
+    const tooLarge = error.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({
       error: {
-        code: 'VALIDATION_ERROR',
-        message: '입력값을 확인해 주세요.',
-        details: error.flatten(),
+        code: tooLarge ? 'UPLOAD_TOO_LARGE' : 'UPLOAD_INVALID',
+        message: tooLarge
+          ? '업로드 가능한 파일 크기를 초과했습니다.'
+          : '업로드 요청을 확인해 주세요.',
       },
+      requestId: req.id,
+    });
+  }
+  const bodyError = error as { type?: unknown };
+  if (bodyError?.type === 'entity.parse.failed')
+    return res.status(400).json({
+      error: { code: 'INVALID_JSON', message: '요청 본문 형식을 확인해 주세요.' },
+      requestId: req.id,
+    });
+  if (bodyError?.type === 'entity.too.large')
+    return res.status(413).json({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: '요청 본문 크기 제한을 초과했습니다.' },
       requestId: req.id,
     });
   if (error instanceof HttpError)
@@ -81,7 +101,16 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
       error: { code: 'DUPLICATE', message: '이미 존재하는 데이터입니다.' },
       requestId: req.id,
     });
-  req.log?.error({ err: error }, 'request failed');
+  const unknownError = error as { name?: unknown; code?: unknown };
+  const safeLogValue = (value: unknown) =>
+    typeof value === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(value) ? value : undefined;
+  req.log?.error(
+    {
+      errorName: safeLogValue(unknownError?.name),
+      errorCode: safeLogValue(unknownError?.code),
+    },
+    'request failed',
+  );
   return res.status(500).json({
     error: { code: 'INTERNAL_ERROR', message: '요청을 처리하지 못했습니다.' },
     requestId: req.id,

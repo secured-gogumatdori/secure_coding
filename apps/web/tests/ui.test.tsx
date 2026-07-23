@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { AuthPage } from '../src/pages.auth';
-import { ProductFormPage } from '../src/pages.products';
+import { ProductFormPage, ProductList } from '../src/pages.products';
 import { WalletPage } from '../src/pages.wallet';
 
 function renderPage(node: React.ReactNode, path = '/') {
@@ -62,6 +62,39 @@ describe('폼 검증과 오류 표시', () => {
     expect(
       await screen.findAllByText(/String must contain|Number must be greater/i),
     ).not.toHaveLength(0);
+  });
+});
+
+describe('출력 인코딩', () => {
+  it('저장된 HTML 형태의 상품명을 실행하지 않고 텍스트로 표시한다', async () => {
+    const malicious = '<script>window.__xss = true</script>';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        response({
+          products: [
+            {
+              id: '00000000-0000-4000-8000-000000000001',
+              sellerId: '00000000-0000-4000-8000-000000000002',
+              name: malicious,
+              description: '<img src=x onerror=alert(1)>',
+              price: '1000',
+              imagePath: 'safe.webp',
+              status: 'ACTIVE',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+          total: 1,
+        }),
+      ),
+    );
+
+    const view = renderPage(<ProductList />, '/products');
+
+    expect(await screen.findByText(malicious)).toBeInTheDocument();
+    expect(view.container.querySelector('script')).toBeNull();
+    expect(view.container.querySelector('img[onerror]')).toBeNull();
   });
 });
 

@@ -109,6 +109,29 @@ describe('인증과 CSRF', () => {
       .expect(403);
     await request(app).post('/api/products').expect(403);
   });
+  it('검증·JSON 파서의 내부 상세를 오류 응답에 노출하지 않는다', async () => {
+    const agent = request.agent(app);
+    const token = await csrf(agent);
+    const validation = await agent
+      .post('/api/auth/signup')
+      .set('x-csrf-token', token)
+      .send({ username: '!', password: 'short', displayName: '' })
+      .expect(400);
+    expect(validation.body).toMatchObject({
+      error: { code: 'VALIDATION_ERROR', message: '입력값을 확인해 주세요.' },
+    });
+    expect(validation.body.error).not.toHaveProperty('details');
+
+    const malformed = await request(app)
+      .post('/api/auth/login')
+      .set('content-type', 'application/json')
+      .send('{"username":')
+      .expect(400);
+    expect(malformed.body).toMatchObject({
+      error: { code: 'INVALID_JSON', message: '요청 본문 형식을 확인해 주세요.' },
+    });
+    expect(JSON.stringify(malformed.body)).not.toMatch(/SyntaxError|Unexpected token|stack/i);
+  });
 });
 
 describe('상품, 검색, IDOR', () => {
@@ -159,9 +182,26 @@ describe('상품, 검색, IDOR', () => {
       })
       .expect(400);
   });
+  it('경로 조작 요청을 파일 내용이나 서버 경로 없이 거부한다', async () => {
+    const response = await request(app).get('/uploads/%2e%2e%2fpackage.json').expect(404);
+    expect(response.body).toMatchObject({ error: { code: 'NOT_FOUND' } });
+    expect(JSON.stringify(response.body)).not.toMatch(/package\.json|\/home\/|node_modules|stack/i);
+  });
 });
 
 describe('신고, 채팅 권한, 관리자 RBAC', () => {
+  it('사용자 검색 입력을 검증하고 비활성 사용자의 기존 세션을 거부한다', async () => {
+    const member = await makeUser('search');
+    const invalid = await member.agent.get('/api/users/search?q=').expect(400);
+    expect(invalid.body.error).toEqual({
+      code: 'VALIDATION_ERROR',
+      message: '입력값을 확인해 주세요.',
+    });
+
+    await prisma.user.update({ where: { id: member.user.id }, data: { status: 'DORMANT' } });
+    await member.agent.get('/api/users/search?q=test').expect(403);
+  });
+
   it('중복 신고를 막고 고유 신고자 임계치에서 상품을 숨긴다', async () => {
     const seller = await makeUser('seller');
     const reporters = await Promise.all([makeUser('rep1'), makeUser('rep2'), makeUser('rep3')]);

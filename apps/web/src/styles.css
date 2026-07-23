@@ -132,6 +132,16 @@ button:disabled {
   border-radius: 10px;
   background: #e9eeeb;
 }
+.product-detail-image {
+  width: 100%;
+  border-radius: 12px;
+}
+.product-description {
+  white-space: pre-wrap;
+}
+.message-field {
+  flex: 1;
+}
 .price {
   font-size: 1.2rem;
   font-weight: 900;
