@@ -168,7 +168,9 @@ User(ADMIN) 1 ── N AdminAuditLog
 
 GLOBAL 방은 필요할 때 생성한다. 1:1 방은 두 사용자 UUID를 정렬해 `directKey`를 만들고 UNIQUE로 중복을 막는다. REST와 Socket 모두 `canAccessRoom`을 사용하므로 임의 room ID로 다른 대화를 읽거나 쓰지 못한다. 브라우저는 메시지 전송 의도마다 UUID를 만들고 Socket acknowledgement가 5초 안에 오지 않으면 같은 UUID로 REST 저장을 재시도한다. DB의 `(senderId, clientMessageId)` UNIQUE와 upsert가 응답만 유실된 경우의 중복 메시지를 막는다.
 
-Socket handshake는 정확한 `WEB_ORIGIN`, PostgreSQL session, `ACTIVE` 상태를 검사한다. `room:join`과 `message:send` 직전 session을 reload하며, 이벤트가 없는 연결도 60초마다 재검증한다. 메시지는 500자로 제한하고 사용자별 10초당 10회 bucket을 적용한다. 로그아웃·비밀번호 변경·관리자 제재·신고 자동 휴면 시 해당 사용자의 기존 Socket을 즉시 종료한다.
+Socket handshake는 정확한 `WEB_ORIGIN`, PostgreSQL session, `ACTIVE` 상태를 검사한다. 브라우저는 WebSocket을 먼저 연결하고 차단된 환경에서 polling을 대체 transport로 시도하며, nginx는 실제 upgrade 요청에만 `Connection: upgrade`를 전달한다. `room:join`과 `message:send` 직전 session을 reload하며, 이벤트가 없는 연결도 60초마다 재검증한다. 메시지는 500자로 제한하고 사용자별 10초당 10회 bucket을 적용한다. 로그아웃·비밀번호 변경·관리자 제재·신고 자동 휴면 시 해당 사용자의 기존 Socket을 즉시 종료한다.
+
+LAN은 `http://192.168.x.x` 형태의 비보안 context이므로 브라우저의 `crypto.randomUUID()`를 사용할 수 없다. 채팅 메시지와 송금의 멱등성 키는 이 환경에서도 허용되는 `crypto.getRandomValues()`로 UUID v4를 생성한다.
 
 ### 5.4 신고와 자동 임시조치
 
@@ -234,7 +236,7 @@ PostgreSQL SERIALIZABLE TRANSACTION
 
 ## 7. 발견한 보안 약점과 변경 내용
 
-모든 변경은 `docs/SECURITY_CHANGES.md`에 파일·함수 위치, 기존 코드, 수정 코드, 설명, 검증, 잔여 위험 형태로 기록했다. 아래는 SEC-01부터 SEC-24까지의 핵심 요약이다.
+모든 변경은 `docs/SECURITY_CHANGES.md`에 파일·함수 위치, 기존 코드, 수정 코드, 설명, 검증, 잔여 위험 형태로 기록했다. 아래는 SEC-01부터 SEC-25까지의 핵심 요약이다.
 
 ### 7.1 변경 전·후 요약
 
@@ -264,6 +266,7 @@ PostgreSQL SERIALIZABLE TRANSACTION
 | SEC-22 | 숨김 메시지가 방 preview에 노출되고 신고 동시 검토 가능       | `VISIBLE` preview 조건과 `PENDING` 원자적 선점                    |
 | SEC-23 | 실행 위치별 `.env` 혼선과 CSRF 응답 무검증                    | 저장소 `.env` 한 곳, 운영 HTTPS·강한 secret, token 형식 검증      |
 | SEC-24 | 관리자 변경과 감사 로그가 별도 DB 작업                        | 네 관리자 mutation에서 변경·복원·감사를 동일 transaction 처리     |
+| SEC-25 | LAN에서 Socket 재연결 반복·브라우저 UUID 생성 중단            | WebSocket 우선·조건부 proxy header·HTTP 호환 난수 UUID            |
 
 ### 7.2 대표 변경 코드
 
@@ -342,7 +345,7 @@ req.log?.error({ errorName: safeName, errorCode: safeCode }, 'request failed');
 - Supertest는 실제 PostgreSQL과 session·CSRF를 사용해 인증, CRUD, 권한, 신고, 채팅, 송금 transaction을 검증한다.
 - API 보안 단위 테스트는 DB mock과 Supertest로 상세 오류 노출, 최신 계정 상태, optional identity, Socket 강제 종료를 검증한다.
 - React Testing Library는 폼 검증, API 오류, 관리자 메뉴, XSS text rendering, 송금 확인·재시도를 검증한다.
-- Playwright는 사용자 A/B와 관리자가 상품 등록, 검색, 1:1 Socket 채팅, 신고, 송금, 관리자 검토, 일반 사용자 403을 수행한다.
+- Playwright는 독립된 두 browser context의 사용자 A/B와 관리자가 상품 등록, 검색, 1:1 Socket 실시간 수신, 신고, 송금, 관리자 검토, 일반 사용자 403을 수행한다.
 - ESLint, strict TypeScript, Prettier, Vite production build, Docker healthcheck, 의존성 검사를 함께 사용한다.
 
 ### 8.3 실제 검증 결과
@@ -350,9 +353,9 @@ req.log?.error({ errorName: safeName, errorCode: safeCode }, 'request failed');
 | 명령·범위                                  | 결과                                      |
 | ------------------------------------------ | ----------------------------------------- |
 | DB 비의존 API 보안·채팅 멱등성 테스트      | 14 PASS                                   |
-| Web UI 폼·검색·페이지·송금 테스트          | 11 PASS                                   |
-| API·Web 통합 테스트 전체 실행 기록         | API 7 + Web UI 6 = 13 PASS                |
-| `npm run test:e2e`                         | Chromium 전체 시나리오 1 PASS             |
+| Web UI 폼·검색·페이지·송금·UUID 테스트     | 12 PASS                                   |
+| `npm test` 전체 실행                       | API 24 + Web UI 12 = 36 PASS              |
+| `npm run test:e2e`                         | Chromium 두 browser context 1 PASS        |
 | `npm run lint`                             | PASS, error·warning 0                     |
 | `npm run typecheck`                        | PASS                                      |
 | `npm run build`                            | PASS                                      |
@@ -373,6 +376,7 @@ req.log?.error({ errorName: safeName, errorCode: safeCode }, 'request failed');
 | E2E 상품 이미지 누락     | form resolver가 FileList 제거        | client schema에 image 유지        | PASS         |
 | E2E 채팅 무응답          | dev Socket proxy 재연결 시 emit 유실 | 연결 처리와 REST fallback         | PASS         |
 | E2E 관리자 이동 실패     | 로그인 완료 전 navigation            | 인증 완료 link 대기               | PASS         |
+| LAN 1:1 채팅·송금 중단   | Socket 전환 경쟁·HTTP UUID API 부재  | WebSocket 우선·난수 UUID helper   | PASS         |
 | dependency advisory 12건 | 오래된 tool·upload·image 의존성      | 안전 버전 pin·lock 갱신           | 당시 audit 0 |
 | Docker Web unhealthy     | `localhost`가 IPv6로 해석            | health URL `127.0.0.1`            | healthy      |
 | 반복 로그인 429 HTML     | 기본 limiter handler                 | 공통 JSON 429 handler             | PASS         |
