@@ -30,7 +30,7 @@ async function logout(page: Page) {
   await expect(page.getByRole('link', { name: '로그인' })).toBeVisible();
 }
 
-test('가입→상품→채팅→신고→송금→관리자 검토→RBAC', async ({ page }) => {
+test('가입→상품→채팅→신고→송금→관리자 검토→RBAC', async ({ page, browser }, testInfo) => {
   test.setTimeout(60_000);
   await signup(page, userA, '사용자에이');
   await page.goto('/products/new');
@@ -48,10 +48,22 @@ test('가입→상품→채팅→신고→송금→관리자 검토→RBAC', asy
   await page.getByRole('link', { name: new RegExp('E2E 안전 상품') }).click();
   await page.getByRole('link', { name: '판매자에게 연락' }).click();
   await page.getByRole('button', { name: '1대1 채팅' }).click();
-  await expect(page.getByRole('alert')).toHaveCount(0, { timeout: 5000 });
+  await expect(page.getByRole('status')).toHaveText('실시간 연결됨', { timeout: 10_000 });
   await page.getByLabel('메시지').fill('상품을 구매하고 싶습니다.');
   await page.getByRole('button', { name: '전송' }).click();
   await expect(page.getByText('상품을 구매하고 싶습니다.')).toBeVisible();
+  const roomPath = new URL(page.url()).pathname;
+  const recipientContext = await browser.newContext({
+    baseURL: String(testInfo.project.use.baseURL),
+  });
+  const recipientPage = await recipientContext.newPage();
+  await login(recipientPage, userA, password);
+  await recipientPage.goto(roomPath);
+  await expect(recipientPage.getByRole('status')).toHaveText('실시간 연결됨', { timeout: 10_000 });
+  await page.getByLabel('메시지').fill('두 기기 실시간 수신 확인');
+  await page.getByRole('button', { name: '전송' }).click();
+  await expect(recipientPage.getByText('두 기기 실시간 수신 확인')).toBeVisible();
+  await recipientContext.close();
   await page.goto(`/search?q=${encodeURIComponent(`E2E 안전 상품 ${stamp}`)}`);
   await page.getByRole('link', { name: new RegExp('E2E 안전 상품') }).click();
   await page.getByRole('link', { name: '상품 신고' }).click();

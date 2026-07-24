@@ -53,10 +53,11 @@
 | G05 | 공통     | lock/audit                     | npm                     | lock/0 vuln             | 7월 22일 0, 최신 미조회   | PARTIAL | package-lock, npm audit   |
 | G06 | 공통     | 403/404/health                 | UI/API 확인             | 명시 페이지/JSON        | 구현                      | PASS    | App.tsx, app.ts           |
 | Q01 | 품질     | lint/typecheck                 | 명령                    | exit 0                  | exit 0                    | PASS    | TEST_REPORT               |
-| Q02 | 품질     | 통합/UI test                   | npm test                | 13 pass                 | 7월 22일 13 pass          | PASS    | TEST_REPORT               |
+| Q02 | 품질     | 통합/UI test                   | npm test                | 전체 통과               | API 24 + UI 12 pass       | PASS    | TEST_REPORT               |
 | Q03 | 품질     | E2E                            | Playwright              | 1 pass                  | 1 pass                    | PASS    | TEST_REPORT               |
 | Q04 | 품질     | production build               | npm build               | exit 0                  | exit 0                    | PASS    | TEST_REPORT               |
-| Q05 | 품질     | 7월 24일 정합성 보완 회귀      | 비DB API/Web UI         | 신규 회귀 통과          | API 14 + UI 11 pass       | PASS    | Vitest 실제 실행          |
+| Q05 | 품질     | 7월 24일 정합성 보완 회귀      | API/Web UI              | 신규 회귀 통과          | API 24 + UI 12 pass       | PASS    | Vitest 실제 실행          |
+| Q06 | 품질     | LAN 두 기기 1:1 실시간 채팅    | Docker/Nginx Playwright | 양방향 연결·실시간 수신 | 두 browser context pass   | PASS    | E2E 실제 LAN URL          |
 
 ## 수동 운영 확인 필요
 

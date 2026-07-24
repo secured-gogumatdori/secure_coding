@@ -62,6 +62,7 @@
 | SEC-22 | 2차 재점검    | 숨김 메시지 미리보기와 신고 동시 검토 경쟁 상태          | `routes.chats.ts`, `routes.admin.ts`                                               | 해결 |
 | SEC-23 | 2차 재점검    | 실행 위치별 환경 파일 혼선과 CSRF 응답 무검증            | `apps/api/src/config.ts`, `apps/web/src/api.ts`                                    | 해결 |
 | SEC-24 | 2차 재점검    | 관리자 변경과 감사 로그가 별도 작업으로 저장됨           | `apps/api/src/routes.admin.ts`                                                     | 해결 |
+| SEC-25 | LAN 실기 검증 | Socket transport 전환 오류와 HTTP의 UUID 생성 중단       | `pages.chat.tsx`, `pages.wallet.tsx`, `client-id.ts`, `nginx.conf`                 | 해결 |
 
 ## SEC-01: 서버 기준 인증·권한 판정으로 IDOR 차단
 
@@ -454,7 +455,7 @@
 - 수정 후 내용:
 
   ```ts
-  const clientMessageId = crypto.randomUUID();
+  const clientMessageId = createClientId();
   const saveWithRest = () =>
     api(`/chats/${roomId}/messages`, {
       method: 'POST',
@@ -486,7 +487,7 @@
   - 같은 키를 다른 방이나 내용에 재사용하면 `409 MESSAGE_KEY_CONFLICT`로 거부하고, broadcast 대상은 요청값이 아니라 저장된 메시지의 방 ID를 사용한다.
   - REST와 Socket 모두 `createMessage`를 호출해 방 membership, 사용자 ACTIVE 상태, 메시지 스키마를 동일하게 검증한다.
 - 보안 효과: 연결 순간의 메시지 유실과 중복 저장을 함께 줄이면서 fallback 경로에서도 Socket과 같은 권한 검사를 강제한다.
-- 검증: Playwright 양 사용자 1:1 채팅 기존 시나리오, 멱등 upsert·키 충돌 DB mock 단위 테스트 3개 통과, 동일 client message ID REST 재요청 통합 테스트 추가(실제 DB 재실행 대기)
+- 검증: Playwright 독립 browser context 양 사용자의 1:1 실시간 수신, 멱등 upsert·키 충돌 DB mock 단위 테스트 3개, 동일 client message ID REST 재요청 통합 테스트 통과
 - 상태: 해결
 
 ## SEC-10: 알려진 공급망 취약점 제거
@@ -1124,7 +1125,7 @@
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
   // 송금 내용을 확정할 때 한 번만 생성
-  setIdempotencyKey(crypto.randomUUID());
+  setIdempotencyKey(createClientId());
   setConfirming(true);
 
   // 실패 후 같은 내용을 다시 시도할 때 기존 키 사용
@@ -1329,6 +1330,77 @@
 - 검증: lint·typecheck 통과, 네 관리자 mutation의 transaction client 사용 정적 검토
 - 상태: 해결
 
+## SEC-25: LAN HTTP에서 실시간 채팅과 멱등 키 생성을 안정화
+
+- 변경일: 2026-07-24
+- 발견 단계: Windows WSL·Docker 환경의 PC/모바일 동시 접속 실기 검증
+- 관련 기준: CWE-400 Uncontrolled Resource Consumption, CWE-703 Improper Check or Handling of Exceptional Conditions
+- 수정 위치:
+  - `apps/web/src/pages.chat.tsx`: `ChatPage` Socket 연결·room 입장·메시지 전송
+  - `apps/web/src/pages.wallet.tsx`: 송금 멱등성 키 생성
+  - `apps/web/src/client-id.ts`: LAN HTTP 호환 UUID v4 생성
+  - `apps/web/nginx.conf`: Socket.IO upgrade·polling reverse proxy
+  - `apps/web/tests/e2e/platform.spec.ts`, `playwright.config.ts`: 실제 배포 URL과 두 브라우저 context 검증
+- 기존 내용:
+
+  ```ts
+  // apps/web/src/pages.chat.tsx
+  const socket = io(import.meta.env.VITE_SOCKET_URL, { withCredentials: true });
+  const clientMessageId = crypto.randomUUID();
+
+  // apps/web/src/pages.wallet.tsx
+  setIdempotencyKey(crypto.randomUUID());
+  ```
+
+  ```nginx
+  # apps/web/nginx.conf
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+  ```
+
+  Socket.IO가 먼저 HTTP polling session을 만든 뒤 WebSocket으로 전환했고, nginx는 upgrade 요청이 아닌 polling에도 `Connection: upgrade`를 고정해 전달했다. 모바일 브라우저에서 전환 중 `Session ID unknown`과 재연결이 발생할 수 있었다. 또한 `crypto.randomUUID()`는 `http://192.168.x.x` 같은 비보안 context에서 제공되지 않아 채팅과 송금 요청이 API 호출 전에 중단됐다.
+
+- 수정 후 내용:
+
+  ```ts
+  // apps/web/src/pages.chat.tsx
+  const socket = io({
+    withCredentials: true,
+    transports: ['websocket', 'polling'],
+    tryAllTransports: true,
+    timeout: 10_000,
+  });
+  const clientMessageId = createClientId();
+
+  // apps/web/src/client-id.ts
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  ```
+
+  ```nginx
+  map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+  }
+
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection $connection_upgrade;
+  proxy_read_timeout 75s;
+  proxy_send_timeout 75s;
+  proxy_buffering off;
+  ```
+
+- 변경 설명:
+  - 클라이언트는 WebSocket을 먼저 연결하고 차단된 환경에서만 polling을 순서대로 시도한다.
+  - nginx는 실제 upgrade 요청에만 `Connection: upgrade`를 전달하고 polling에는 `close`를 전달한다.
+  - Socket 연결과 `room:join` acknowledgement를 별도로 확인해 UI에 `실시간 연결됨` 상태를 표시한다.
+  - 보안 context가 아닌 LAN HTTP에서도 허용되는 `crypto.getRandomValues()`로 RFC 4122 UUID v4를 만들고, 채팅·송금이 같은 생성기를 사용한다.
+  - E2E는 선택한 `E2E_BASE_URL`의 Docker/Nginx 경로를 사용하고 독립 session을 가진 두 browser context 사이의 실시간 수신을 확인한다.
+- 보안 효과: Socket 재연결 반복으로 인한 가용성 저하를 줄이고, 일반 LAN HTTP에서도 예측하기 어려운 메시지·송금 멱등성 키를 생성해 중복 요청 방어가 실제로 동작하도록 한다.
+- 검증: `npm test` API 24개·Web 12개 통과, lint·strict typecheck 통과, Docker DB/API/Web healthy, `E2E_BASE_URL=http://192.168.1.5:5173 npm run test:e2e` 두 browser context 실시간 1:1 수신 포함 1개 시나리오 통과
+- 상태: 해결
+
 ## 2026-07-23 재점검 검증 제한
 
 - 2차 점검까지 DB 비의존 API 보안 테스트 11개와 Web UI 테스트 9개, lint, typecheck, production build, format check, `git diff --check`가 통과했다.
@@ -1338,8 +1410,8 @@
 ## 2026-07-24 플랫폼·문서 정합성 보완
 
 - Docker seed image volume, 공개 상품 상태·페이지 UI, 클라이언트 이미지 형식·크기 검사, same-origin Socket, 멱등 메시지 REST fallback, 송금 충돌 안내를 코드와 문서에 함께 반영했다.
-- DB 비의존 API 보안·채팅 테스트 14개와 Web UI 테스트 11개, lint, typecheck, production build, format check, `git diff --check`가 통과했다.
-- 로컬 PostgreSQL에 연결할 수 없어 신규 message idempotency migration과 DB 통합·E2E는 재실행하지 못했다. Prisma Client 생성으로 schema를 검증했고 DB mock 단위 테스트와 실제 DB 통합 회귀 코드를 추가했다.
+- PostgreSQL 연결 복구 후 `npm test`의 API 24개와 Web UI 12개, lint, typecheck, production Docker build가 통과했다.
+- 실제 LAN URL의 Docker/Nginx 환경에서 독립된 두 browser context가 같은 1:1 방에 접속해 메시지를 실시간 수신하는 Playwright 시나리오가 통과했다.
 
 ## 잔여 위험
 

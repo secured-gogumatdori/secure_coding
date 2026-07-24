@@ -8,6 +8,7 @@ import { AuthPage } from '../src/pages.auth';
 import { ProductFormPage, ProductList } from '../src/pages.products';
 import { WalletPage } from '../src/pages.wallet';
 import { resetCsrf } from '../src/api';
+import { createClientId } from '../src/client-id';
 
 function renderPage(node: React.ReactNode, path = '/') {
   const client = new QueryClient({
@@ -30,6 +31,12 @@ afterEach(() => {
 });
 
 describe('폼 검증과 오류 표시', () => {
+  it('LAN의 일반 HTTP에서도 사용할 수 있는 UUID를 생성한다', () => {
+    expect(createClientId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
   it('로그인 폼이 잘못된 아이디와 빈 비밀번호를 거부한다', async () => {
     const mock = vi.fn();
     vi.stubGlobal('fetch', mock);

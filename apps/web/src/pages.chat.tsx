@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { api } from './api';
 import { useMe } from './App';
+import { createClientId } from './client-id';
 import type { Message, Room, UserSummary } from './types';
 
 export function ChatIndex() {
@@ -66,6 +67,7 @@ export function ChatPage() {
   const client = useQueryClient();
   const [content, setContent] = useState('');
   const [socketError, setSocketError] = useState('');
+  const [socketReady, setSocketReady] = useState(false);
   const socketRef = useRef<Socket>();
   const query = useQuery<{ messages: Message[] }>({
     queryKey: ['messages', roomId],
@@ -80,17 +82,41 @@ export function ChatPage() {
     }));
   useEffect(() => {
     if (!roomId) return;
-    const socket = io(import.meta.env.VITE_SOCKET_URL, { withCredentials: true });
+    const socket = io({
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      tryAllTransports: true,
+      timeout: 10_000,
+    });
     socketRef.current = socket;
-    socket.on('connect', () =>
-      socket.emit('room:join', roomId, (answer: { ok: boolean; message?: string }) => {
-        if (answer.ok) setSocketError('');
-        else setSocketError(answer.message ?? '참여할 수 없습니다.');
-      }),
-    );
-    socket.on('connect_error', () =>
-      setSocketError('실시간 연결에 실패했습니다. 재연결 중입니다.'),
-    );
+    socket.on('connect', () => {
+      socket
+        .timeout(5000)
+        .emit(
+          'room:join',
+          roomId,
+          (error: Error | null, answer?: { ok: boolean; message?: string }) => {
+            if (!error && answer?.ok) {
+              setSocketReady(true);
+              setSocketError('');
+            } else {
+              setSocketReady(false);
+              setSocketError(
+                answer?.message ?? '실시간 채팅방 연결에 실패했습니다. 재연결 중입니다.',
+              );
+            }
+          },
+        );
+    });
+    socket.on('connect_error', () => {
+      setSocketReady(false);
+      setSocketError('실시간 연결에 실패했습니다. 재연결 중입니다.');
+    });
+    socket.on('disconnect', (reason) => {
+      setSocketReady(false);
+      if (reason !== 'io client disconnect')
+        setSocketError('실시간 연결이 끊겼습니다. 재연결 중입니다.');
+    });
     socket.on('message:new', appendMessage);
     return () => {
       socket.disconnect();
@@ -100,7 +126,7 @@ export function ChatPage() {
     event.preventDefault();
     const value = content.trim();
     if (!value || !roomId) return;
-    const clientMessageId = crypto.randomUUID();
+    const clientMessageId = createClientId();
     const socket = socketRef.current;
     const saveWithRest = () =>
       api<{ message: Message }>(`/chats/${roomId}/messages`, {
@@ -144,6 +170,7 @@ export function ChatPage() {
           {socketError}
         </p>
       )}
+      {socketReady && <p role="status">실시간 연결됨</p>}
       <div className="chat" aria-live="polite">
         {query.isLoading && <p>메시지를 불러오는 중…</p>}
         {query.error && <p className="error">{query.error.message}</p>}

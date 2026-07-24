@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from './api';
+import { createClientId } from './client-id';
 import type { UserSummary } from './types';
 
 const warning = (
@@ -106,7 +107,7 @@ export function WalletPage() {
                   type="button"
                   disabled={!Number.isInteger(Number(amount)) || Number(amount) <= 0}
                   onClick={() => {
-                    setIdempotencyKey(crypto.randomUUID());
+                    setIdempotencyKey(createClientId());
                     setConfirming(true);
                   }}
                 >
