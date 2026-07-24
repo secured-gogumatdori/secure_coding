@@ -68,7 +68,7 @@ app.use(
   '/uploads',
   express.static(path.resolve(config.UPLOAD_DIR), {
     dotfiles: 'deny',
-    fallthrough: false,
+    fallthrough: true,
     maxAge: '1d',
     immutable: false,
   }),

@@ -68,7 +68,7 @@ seed는 `.env`의 관리자/일반 사용자 비밀번호를 Argon2id로 해싱�
 ```bash
 cp .env.example .env
 # .env 보안 값 변경
-docker compose up --build
+docker compose up --build --wait
 docker compose run --rm migrate npm run db:seed
 ```
 
